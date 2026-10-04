@@ -183,7 +183,7 @@ async function activateRuntime(next: AppSettings): Promise<void> {
     setStatus(`${desc.name} 미연결`);
     return;
   }
-  setOverlay({ kind: "empty", hint: `${runtime.accept || "모델 파일"}을(를) 끌어다 놓거나 상단의 열기 또는 샘플을 누르세요.` });
+  setOverlay({ kind: "empty", hint: `${runtime.accept || "모델 파일"}을(를) 끌어다 놓거나 상단 왼쪽의 모델에서 고르거나 가져오세요.` });
   setStatus(`${desc.name} 준비됨`);
 }
 
@@ -396,7 +396,6 @@ function syncChrome(rebuildParams = false): void {
   const canOpen = !!runtime && (!external || external.connected);
   $<HTMLButtonElement>("load-sample").disabled = !canOpen;
   $<HTMLInputElement>("file-input").disabled = !canOpen;
-  $("file-input").parentElement!.classList.toggle("disabled", !canOpen);
 }
 
 function rebuildParameters(): void {

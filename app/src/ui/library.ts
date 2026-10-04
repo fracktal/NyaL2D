@@ -20,7 +20,7 @@ export function openLibrary(current: string | undefined): Promise<LibraryChoice 
   const close = el("button", { class: "btn ghost icon", type: "button", "aria-label": "닫기" });
   close.innerHTML = icon("close");
   const input = el("input", { type: "file", multiple: true, accept: ".iki,.json,.psd,.png,.webp", class: "sr-only" });
-  const importBtn = el("label", { class: "btn primary", tabindex: "0" }, "파일 가져오기", input);
+  const importBtn = el("label", { class: "btn primary", tabindex: "0" }, "가져오기 (Import)", input);
   let result: LibraryChoice | undefined;
   const choose = (c: LibraryChoice) => {
     result = c;
@@ -62,7 +62,7 @@ export function openLibrary(current: string | undefined): Promise<LibraryChoice 
         }),
       );
     }
-    if (!entries.length) list.append(el("p", { class: "modal-hint" }, "아직 가져온 캐릭터가 없습니다. PSD나 .iki를 가져오면 여기에 쌓입니다."));
+    if (!entries.length) list.append(el("p", { class: "modal-hint" }, "아직 가져온 캐릭터가 없습니다. PSD나 .iki를 가져오기(Import)하면 여기에 쌓입니다."));
   };
 
   input.addEventListener("change", () => {
@@ -77,7 +77,7 @@ export function openLibrary(current: string | undefined): Promise<LibraryChoice 
     el(
       "div",
       { class: "modal-body" },
-      el("p", { class: "modal-hint" }, "열 캐릭터를 고르세요. 가져온 PSD·.iki는 이 PC(WSL app/public/local)에 저장되고 git에는 올라가지 않습니다. PSD는 열 때마다 자동 리깅합니다."),
+      el("p", { class: "modal-hint" }, "열 캐릭터를 고르거나, 새 파일을 가져오기(Import)하세요. 가져온 PSD·.iki는 이 PC(WSL app/public/local)에 저장되고 git에는 올라가지 않습니다. PSD는 열 때마다 자동 리깅합니다."),
       list,
     ),
     el("footer", { class: "modal-foot" }, el("span", { class: "muted", style: "font-size:12px" }, "PSD · .iki · 레이어 PNG 여러 장"), el("span", { class: "spacer" }), importBtn),

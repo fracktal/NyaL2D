@@ -38,6 +38,7 @@ describe("featureOf", () => {
     ["*ほほえみ口", "mouth"],
     ["顔色", "blush"],
     ["顔", "face"],
+    ["!頭", "face"],
     ["体", "body"],
     ["속눈썹", "lash"],
     ["눈썹", "brow"],

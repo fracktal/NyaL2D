@@ -107,6 +107,9 @@ export async function importLayeredArt(files: File[]): Promise<ImportResult> {
     throw new Error(
       `자동 리깅에 필요한 부위를 찾지 못했습니다: ${missing.join(", ")}. 찾은 부위: ${found}. ` +
         `레이어(또는 그룹) 이름에 얼굴/눈/입 등이 드러나야 합니다 (예: 顔, 目, 口 / 얼굴, 눈, 입 / face, eye_L, mouth). ` +
+        (missing.includes("face") && from.has("body")
+          ? `얼굴이 몸과 한 레이어로 합쳐진 PSD일 수 있습니다. 머리(얼굴)가 따로 나뉜 버전을 쓰세요 (예: ずんだもん 立ち絵는 基本版 대신 全部詰め版). `
+          : "") +
         `레이어가 없는 한 장짜리 그림은 먼저 See-Through 같은 도구로 레이어를 나눠야 합니다.`,
     );
   }

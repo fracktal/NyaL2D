@@ -46,7 +46,7 @@ const KEYWORDS: readonly { base: string; latin: string[]; cjk: string[] }[] = [
   { base: "eye", latin: ["eye", "eyes", "eye_white", "eyewhite", "sclera"], cjk: ["白目", "目", "眼", "흰자", "눈"] },
   { base: "mouth", latin: ["mouth", "lip", "lips", "teeth", "tongue", "kuchi"], cjk: ["口", "唇", "歯", "舌", "くち", "입", "입술", "이빨", "치아", "혀"] },
   { base: "nose", latin: ["nose", "hana"], cjk: ["鼻", "코"] },
-  { base: "face", latin: ["face", "skin", "head", "ear", "ears", "earwear", "earring", "kao"], cjk: ["顔", "輪郭", "肌", "耳", "かお", "얼굴", "피부", "귀", "윤곽"] },
+  { base: "face", latin: ["face", "skin", "head", "ear", "ears", "earwear", "earring", "kao"], cjk: ["顔", "頭", "輪郭", "肌", "耳", "かお", "얼굴", "피부", "귀", "윤곽"] },
   { base: "hair", latin: ["hair", "kami"], cjk: ["髪", "髮", "かみ", "头发", "머리카락", "헤어"] },
   { base: "body", latin: ["body", "torso", "neck", "neckwear", "topwear", "bottomwear", "legwear", "footwear", "handwear", "chest", "cloth", "clothes", "shirt", "arm", "arms", "hand", "hands", "leg", "legs", "shoulder", "uniform", "dress", "tail", "wings", "wing", "objects", "object"], cjk: ["体", "身体", "胴", "首", "服", "腕", "手", "足", "脚", "肩", "胸", "尻尾", "しっぽ", "翼", "몸", "몸통", "목", "옷", "팔", "손", "다리", "어깨", "가슴", "꼬리", "날개"] },
 ];

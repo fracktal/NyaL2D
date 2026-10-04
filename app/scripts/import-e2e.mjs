@@ -29,6 +29,7 @@ page.on("console", (m) => log.push(`[${m.type()}] ${m.text()}`));
 page.on("pageerror", (e) => log.push(`[pageerror] ${e.message}`));
 await page.goto(URL);
 await page.evaluate(() => window.nyal2d.ready);
+const libraryBefore = await page.evaluate(async () => (await (await fetch("./llm/library")).json()).map((e) => e.file));
 
 // --- Cut the hero's parts back out into full-canvas RGBA layers -------------------
 const parts = await page.evaluate(async () => {
@@ -182,6 +183,15 @@ for (const c of cases) {
   await page.locator("#stage").screenshot({ path: `${OUT}/${c.name}-posed.png` });
   await page.evaluate(() => window.nyal2d.runtime.resetPose());
 }
+
+// Opening files also saves them to the character library; take this run's test files back out.
+const removed = await page.evaluate(async (before) => {
+  const now = (await (await fetch("./llm/library")).json()).map((e) => e.file);
+  const added = now.filter((f) => !before.includes(f));
+  for (const f of added) await fetch(`./llm/library/file?name=${encodeURIComponent(f)}`, { method: "DELETE" });
+  return added;
+}, libraryBefore);
+console.log(`library: removed ${removed.length} test file(s)`);
 
 writeFileSync(`${OUT}/results.json`, JSON.stringify(results, null, 2));
 console.log(JSON.stringify(results, null, 2));

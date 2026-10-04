@@ -10,9 +10,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "smoke": "vite build && node scripts/smoke.mjs"
+    "smoke": "vite build && node scripts/smoke.mjs",
+    "proxy": "node server/llm-proxy.ts",
+    "proxy:mock": "NYAL2D_LLM_PROVIDER=mock node server/llm-proxy.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@ikijs/editor": "0.12.1",
     "@ikijs/engine": "0.3.4",

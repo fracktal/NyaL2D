@@ -13,7 +13,7 @@ export function renderChanges(root: HTMLElement, session: ModelSession): void {
         { class: i === applied.length - 1 ? "node latest" : "node", title: `${c.label} · ${c.source}` },
         el("span", { class: "seq" }, `#${c.seq}`),
         c.label,
-        el("span", { class: "src" }, c.source),
+        el("span", { class: c.source === "agent" ? "src agent" : "src" }, c.source === "agent" ? "AI" : c.source),
       ),
     );
   });

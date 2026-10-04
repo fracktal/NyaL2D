@@ -10,8 +10,13 @@ const PORT = 4179;
 const OUT = process.env.SMOKE_OUT ?? "smoke-out";
 mkdirSync(OUT, { recursive: true });
 
+const PROXY_PORT = "8797";
+const env = { ...process.env, NYAL2D_PROXY_PORT: PROXY_PORT };
+// The agent panel is exercised against the scripted (mock) LLM provider.
+const proxy = spawn("node", ["server/llm-proxy.ts"], { stdio: ["ignore", "ignore", "inherit"], env: { ...env, NYAL2D_LLM_PROVIDER: "mock" } });
 const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], {
   stdio: ["ignore", "ignore", "inherit"],
+  env,
 });
 for (let i = 0; ; i++) {
   try {
@@ -177,6 +182,28 @@ try {
   });
   await page.evaluate(() => window.nyal2d.tools.call("set_motion_mode", { mode: "idle" }));
 
+  // Agent panel, driven through the UI against the mock provider.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.click('#panel-switch button[data-view="agent"]');
+  await page.waitForSelector(".agent-status.mock");
+  await page.click('.chip:has-text("숨 쉬는")');
+  await page.waitForFunction(() => document.querySelectorAll(".step.ok").length >= 5 && !document.querySelector(".thinking"));
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${OUT}/04b-agent-dark.png` });
+  results.agent = await page.evaluate(() => ({
+    status: document.querySelector(".agent-status")?.textContent,
+    steps: [...document.querySelectorAll(".step")].map((s) => `${s.querySelector(".phase")?.textContent}:${s.classList.contains("ok") ? "ok" : "fail"}:${s.querySelector(".step-title")?.lastChild?.textContent}`),
+    replies: [...document.querySelectorAll(".msg.assistant")].length,
+    changes: window.nyal2d.session().changes.map((c) => `${c.label}·${c.source}`),
+    timelineTags: [...document.querySelectorAll("#changes .src.agent")].map((n) => n.textContent),
+  }));
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: `${OUT}/04c-agent-light.png` });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.evaluate(() => window.nyal2d.session().revertAll());
+  await page.click('#panel-switch button[data-view="inspector"]');
+
   // Inspector tabs and the error state, for visual review.
   await page.emulateMedia({ colorScheme: "dark" });
   await page.click('.tab:has-text("디포머")');
@@ -250,4 +277,5 @@ try {
   console.log(JSON.stringify(results, null, 2));
   await browser.close();
   server.kill();
+  proxy.kill();
 }

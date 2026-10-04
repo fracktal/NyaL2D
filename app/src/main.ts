@@ -5,11 +5,14 @@ import "@fontsource/jetbrains-mono/600.css";
 import { loadIkiModel, type IkiModel } from "@ikijs/format";
 import { inspectModel } from "./inspection/inspect";
 import { ModelSession } from "./model/model-session";
+import { ProxyLlmClient } from "./agent/llm";
+import { AgentSession } from "./agent/loop";
 import { callTool, listTools, type ToolContext, type ToolResult, type ToolSpec } from "./agent/tools";
 import { ExternalRuntime, importAdapter } from "./runtime/external-runtime";
 import { IkiRuntime } from "./runtime/iki-runtime";
 import { adapterUrlFor, loadSettings, RUNTIMES, saveSettings, type AppSettings, type RuntimeId } from "./runtime/registry";
 import type { MotionMode, PuppetRuntime } from "./runtime/types";
+import { mountAgentPanel } from "./ui/agent-panel";
 import { renderChanges } from "./ui/changes";
 import { icon } from "./ui/icons";
 import { renderInspector, renderRuntimeInspector } from "./ui/inspector";
@@ -139,6 +142,7 @@ function mountCanvas(): HTMLCanvasElement {
 // --- Runtime lifecycle ---------------------------------------------------------
 
 async function activateRuntime(next: AppSettings): Promise<void> {
+  resetAgent();
   unsubscribeSession?.();
   unsubscribeParams?.();
   runtime?.destroy();
@@ -213,6 +217,7 @@ async function openIkiText(text: string, label: string): Promise<void> {
     return;
   }
   unsubscribeSession?.();
+  resetAgent();
   session = new ModelSession(model);
   unsubscribeSession = session.onChange(() => void refresh());
   setOverlay({ kind: "loading", label: `${label} 불러오는 중` });
@@ -223,6 +228,7 @@ async function openIkiText(text: string, label: string): Promise<void> {
 
 async function openExternal(files: File[], label: string): Promise<void> {
   if (!external) return;
+  resetAgent();
   setOverlay({ kind: "loading", label: `${label} 불러오는 중` });
   try {
     await external.load(files);
@@ -390,8 +396,13 @@ $("revert").addEventListener("click", () => {
 
 window.addEventListener("keydown", (e) => {
   const target = e.target as HTMLElement;
-  if (target.matches("input[type=text], input[type=search], input[type=url], input:not([type])") || target.closest("dialog")) return;
   const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.key.toLowerCase() === "j" && !target.closest("dialog")) {
+    e.preventDefault();
+    showView(currentView === "agent" ? "inspector" : "agent");
+    return;
+  }
+  if (target.matches("input[type=text], input[type=search], input[type=url], input:not([type]), textarea") || target.closest("dialog")) return;
   if (mod && e.key.toLowerCase() === "z") {
     e.preventDefault();
     if (e.shiftKey) session?.redo();
@@ -447,6 +458,47 @@ declare global {
       ready: Promise<void>;
     };
   }
+}
+
+// --- Agent -----------------------------------------------------------------------
+
+const llm = new ProxyLlmClient();
+const agent = new AgentSession(llm, toolContext);
+const agentPanel = mountAgentPanel($("view-agent"), agent, llm);
+type View = "inspector" | "agent";
+let currentView: View = "inspector";
+
+function showView(view: View): void {
+  currentView = view;
+  for (const b of $("panel-switch").querySelectorAll<HTMLButtonElement>("button")) b.setAttribute("aria-selected", String(b.dataset.view === view));
+  $("view-inspector").hidden = view !== "inspector";
+  $("view-agent").hidden = view !== "agent";
+  try {
+    localStorage.setItem("nyal2d.view", view);
+  } catch {
+    // Storage blocked: the choice lasts for this page only.
+  }
+  if (view === "agent") {
+    void agentPanel.refreshHealth();
+    agentPanel.focus();
+  }
+}
+
+$("panel-switch").addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-view]");
+  if (b) showView(b.dataset.view as View);
+});
+try {
+  if (localStorage.getItem("nyal2d.view") === "agent") showView("agent");
+} catch {
+  // Storage blocked: start on the inspector.
+}
+
+/** A different model or runtime makes the conversation stale. */
+function resetAgent(): void {
+  if (!agent.messages.length && !agent.busy) return;
+  agent.reset();
+  agentPanel.clear("모델이 바뀌어 대화를 새로 시작했습니다.");
 }
 
 function toolContext(): ToolContext {

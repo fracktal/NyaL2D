@@ -24,6 +24,10 @@ const paths: Record<string, string> = {
   settings: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   plug: '<path d="M9 3v5M15 3v5"/><path d="M6.5 8h11v3a5.5 5.5 0 0 1-11 0z"/><path d="M12 16.5V21"/>',
   bolt: '<path d="M13 3 5 13.5h6L10.5 21 19 10h-6z"/>',
+  send: '<path d="M12 19V5"/><path d="m6 11 6-6 6 6"/>',
+  stop: '<rect x="7" y="7" width="10" height="10" rx="2"/>',
+  chat: '<path d="M5 5.5h14A1.5 1.5 0 0 1 20.5 7v8.5A1.5 1.5 0 0 1 19 17h-7l-4.5 3.5V17H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
 };
 
 export function icon(name: keyof typeof paths | string, cls = ""): string {

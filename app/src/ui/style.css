@@ -482,3 +482,103 @@ svg.kind { width: 14px; height: 14px; color: var(--text-3); flex: none; }
 .cap-list .no svg { color: var(--text-3); }
 .segmented button:disabled { opacity: 0.35; cursor: default; }
 .stage-overlay.unconnected .error-detail { color: var(--text-2); }
+
+/* Right panel switch (inspector / agent) ------------------------------------ */
+.panel-right { overflow: hidden; }
+.panel-switch { display: flex; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--border); flex: none; }
+.panel-switch button {
+  flex: 1; height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  border: 0; border-radius: var(--radius-s); background: transparent; color: var(--text-3);
+  font: inherit; font-size: 12.5px; font-weight: 550; cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
+}
+.panel-switch button:hover { color: var(--text-2); background: var(--surface-2); }
+.panel-switch button[aria-selected="true"] { color: var(--text); background: var(--surface-3); }
+.ai-mark {
+  width: 12px; height: 12px; border-radius: 4px; flex: none;
+  background: conic-gradient(from 200deg, var(--accent), #ff7a59, #b98cff, var(--accent));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+/* Agent ---------------------------------------------------------------------- */
+.agent-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 12px; border-bottom: 1px solid var(--border); flex: none; }
+.agent-status { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-2); min-width: 0; }
+.agent-status span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); flex: none; }
+.agent-status.ok .dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(92, 192, 138, 0.15); }
+.agent-status.mock .dot { background: var(--info); }
+.agent-status.warn .dot { background: var(--danger); }
+.agent-status.warn { color: var(--danger); }
+.agent-status.busy .dot { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+.agent-log { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 12px 4px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+.agent-run { display: flex; flex-direction: column; gap: 6px; }
+.agent-run + .agent-run { padding-top: 10px; border-top: 1px dashed var(--border); }
+
+.agent-empty { margin: auto 0; padding: 18px 6px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.agent-empty .big-icon { width: 30px; height: 30px; color: var(--accent); }
+.agent-empty h3 { margin: 4px 0 0; font-size: 14px; font-weight: 650; }
+.agent-empty p { margin: 0 0 6px; font-size: 12.5px; line-height: 1.6; color: var(--text-2); max-width: 270px; }
+.chips { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.chip {
+  text-align: left; padding: 8px 10px; border-radius: var(--radius-m); border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-2); font: inherit; font-size: 12.5px; cursor: pointer;
+  transition: border-color 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.chip:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--text); background: var(--surface-3); }
+
+.msg { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.msg.user {
+  align-self: flex-end; max-width: 88%; padding: 7px 11px; border-radius: 12px 12px 4px 12px;
+  background: var(--accent-soft); color: var(--text); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.msg.assistant { color: var(--text); padding: 2px 2px; }
+.msg.assistant code { font-family: var(--font-mono); font-size: 11.5px; padding: 1px 4px; border-radius: 4px; background: var(--surface-3); }
+.msg.note { font-size: 12px; color: var(--text-3); text-align: center; }
+.msg.error {
+  display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: var(--radius-m);
+  background: var(--danger-soft); color: var(--danger); font-size: 12.5px;
+}
+.msg.error svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
+
+.step {
+  display: flex; gap: 9px; padding: 7px 9px; border-radius: var(--radius-m);
+  background: var(--surface-2); border: 1px solid var(--border);
+  animation: step-in 0.18s var(--ease);
+}
+@keyframes step-in { from { opacity: 0; translate: 0 3px; } }
+.step-icon { width: 16px; height: 16px; flex: none; display: grid; place-items: center; margin-top: 1px; }
+.step-icon svg { width: 15px; height: 15px; }
+.step.ok .step-icon { color: var(--ok); }
+.step.failed { border-color: color-mix(in srgb, var(--danger) 35%, var(--border)); }
+.step.failed .step-icon { color: var(--danger); }
+.step-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.step-title { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 550; }
+.step-detail { color: var(--text-3); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; font-size: 11px; }
+.step.failed .step-detail { color: var(--danger); }
+.step-shot { margin-top: 4px; width: 100%; max-height: 160px; object-fit: contain; border-radius: var(--radius-s); background: var(--stage-b); border: 1px solid var(--border); }
+.phase { font-size: 10px; font-weight: 650; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 999px; background: var(--surface-3); color: var(--text-3); }
+.phase.change { background: var(--accent-soft); color: var(--accent); }
+.phase.evaluate { background: rgba(92, 192, 138, 0.12); color: var(--ok); }
+.phase.plan { background: rgba(122, 167, 255, 0.13); color: var(--info); }
+
+.thinking { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); padding: 2px; }
+.spinner.sm { width: 12px; height: 12px; border-width: 1.5px; }
+
+.agent-composer { flex: none; padding: 8px 10px 10px; border-top: 1px solid var(--border); background: var(--surface-1); }
+.agent-box {
+  display: flex; align-items: flex-end; gap: 6px; padding: 6px 6px 6px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-l); background: var(--surface-2);
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.agent-box:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); box-shadow: 0 0 0 3px var(--accent-soft); }
+.agent-input {
+  flex: 1; min-height: 22px; max-height: 160px; resize: none; border: 0; outline: 0; background: transparent;
+  color: var(--text); font: inherit; font-size: 13px; line-height: 1.55; padding: 3px 0;
+}
+.agent-input::placeholder { color: var(--text-3); }
+.agent-send { border-radius: 9px; flex: none; }
+.agent-hint { margin-top: 6px; font-size: 10.5px; color: var(--text-3); text-align: center; }
+.node .src.agent { color: var(--accent); font-weight: 650; }

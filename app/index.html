@@ -62,9 +62,18 @@
         <div class="stage-overlay" id="overlay"><div class="overlay-card" id="overlay-card"></div></div>
       </main>
 
-      <aside class="panel panel-right" aria-label="인스펙터">
-        <div class="tabs" role="tablist" id="inspector-tabs"></div>
-        <div id="inspector" class="panel-body"></div>
+      <aside class="panel panel-right" aria-label="인스펙터와 에이전트">
+        <div class="panel-switch" role="tablist" aria-label="오른쪽 패널" id="panel-switch">
+          <button type="button" role="tab" data-view="inspector" aria-selected="true" aria-controls="view-inspector">인스펙터</button>
+          <button type="button" role="tab" data-view="agent" aria-selected="false" aria-controls="view-agent" title="에이전트 (Ctrl+J)">
+            <span class="ai-mark" aria-hidden="true"></span>에이전트
+          </button>
+        </div>
+        <div id="view-inspector" class="view" role="tabpanel">
+          <div class="tabs" role="tablist" id="inspector-tabs"></div>
+          <div id="inspector" class="panel-body"></div>
+        </div>
+        <div id="view-agent" class="view agent" role="tabpanel" hidden></div>
       </aside>
 
       <footer class="timeline" aria-label="변경 기록">

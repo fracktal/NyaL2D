@@ -612,3 +612,4 @@ svg.kind { width: 14px; height: 14px; color: var(--text-3); flex: none; }
 .doc .badge { height: auto; padding: 0; border: 0; border-radius: 0; background: none; font-size: inherit; font-weight: 400; color: var(--text-3); }
 .doc .badge::before { content: "·"; margin: 0 6px; color: var(--text-3); }
 .doc .badge.accent { color: var(--accent); background: none; }
+.doc { align-self: flex-end; margin-left: 10px; padding-bottom: 9px; line-height: 1; }

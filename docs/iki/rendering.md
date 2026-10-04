@@ -42,4 +42,4 @@ requestAnimationFrame (IkiPlayer.start가 소유)
 
 ![프로토타입](img/prototype-loaded.png)
 
-headless Chromium(SwiftShader)에서 `hero.iki`를 로드한 화면. 왼쪽은 파라미터(⟲는 모션 드라이버가 쓰는 파라미터), 오른쪽은 인스펙터, 아래는 변경 목록.
+headless Chromium(SwiftShader)에서 `hero.iki`를 로드하고 인스펙터에서 `hairSway.stiffness`를 30 → 120으로 바꾼 화면. 왼쪽은 그룹별 파라미터(Idle 표시는 모션 드라이버가 쓰는 값), 오른쪽 물리 탭은 Iki 물리 드라이버를 헤드리스로 돌린 계단 응답(주황: 현재, 회색: 원본), 아래는 변경 타임라인.

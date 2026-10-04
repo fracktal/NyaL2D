@@ -45,6 +45,11 @@ export class ModelSession {
     return this.applied;
   }
 
+  /** Undone changes that {@link redo} would re-apply, next one last. */
+  get redoable(): readonly ChangeEntry[] {
+    return this.undone.map((u) => u.entry);
+  }
+
   get canUndo(): boolean {
     return this.applied.length > 0;
   }

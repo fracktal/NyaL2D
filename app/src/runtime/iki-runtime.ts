@@ -76,6 +76,11 @@ export class IkiRuntime {
     this.emitParam(id);
   }
 
+  /** Put every parameter back at its declared default. */
+  resetPose(): void {
+    for (const p of this.player.getParameters()) this.setParameter(p.id, p.default);
+  }
+
   snapshotParameters(): Record<string, number> {
     const out: Record<string, number> = {};
     for (const p of this.player.getParameters()) out[p.id] = this.player.getParameter(p.id);

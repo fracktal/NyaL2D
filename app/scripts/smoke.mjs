@@ -124,7 +124,7 @@ try {
   results.hairSwayStepResponse = await trajectory();
 
   // Reversible change through the UI: edit hairSway stiffness in the inspector.
-  const stiffness = page.locator("#inspector details:has(> summary:text-is('hairSway')) dd input").nth(3);
+  const stiffness = page.locator('input[aria-label="hairSway stiffness"]');
   await stiffness.fill("120");
   await stiffness.press("Tab");
   await page.waitForTimeout(300);
@@ -139,12 +139,25 @@ try {
   });
   results.hairSwayStepResponseStiff = await trajectory();
   await page.screenshot({ path: `${OUT}/03-after-edit.png` });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: `${OUT}/04-after-edit-dark.png` });
+  await page.emulateMedia({ colorScheme: "light" });
   await page.click("#undo");
   await page.waitForTimeout(300);
   results.afterUndo = await page.evaluate(() => ({
     changes: window.nyal2d.session().changes.length,
     runtimeStiffness: window.nyal2d.runtime.loadedModel.physics.find((r) => r.id === "hairSway").stiffness,
   }));
+
+  // Inspector tabs and the error state, for visual review.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.click('.tab:has-text("디포머")');
+  await page.click('.tree-row:has-text("headDeformer")');
+  await page.locator("#file-input").setInputFiles({ name: "broken.iki", mimeType: "application/json", buffer: Buffer.from('{"version":1,"name":"x","canvas":{"width":0,"height":10},"parameters":[],"parts":[]}') });
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${OUT}/05-deformers-error-dark.png` });
+  results.errorOverlay = await page.locator(".error-detail").textContent();
 
   results.console = consoleLines;
 } finally {

@@ -8,49 +8,74 @@
     <link rel="stylesheet" href="./src/ui/style.css" />
   </head>
   <body>
-    <header id="toolbar">
-      <strong>NyaL2D</strong>
-      <span id="model-name" class="muted">모델 없음</span>
-      <span class="spacer"></span>
-      <button id="load-sample">샘플 모델</button>
-      <label class="file-btn">
-        .iki 열기
-        <input id="file-input" type="file" accept=".iki,.json,application/json" hidden />
-      </label>
-      <label
-        >모션
-        <select id="motion-mode">
-          <option value="idle" selected>Idle + 물리</option>
-          <option value="physics">물리만</option>
-          <option value="off">끔</option>
-        </select></label
-      >
-      <button id="capture">프레임 캡처</button>
-      <button id="export">현재 모델 내보내기</button>
-    </header>
-    <main id="workspace">
-      <section id="params-panel" class="panel">
-        <h2>Parameters</h2>
-        <div id="params"></div>
-      </section>
-      <section id="stage">
-        <canvas id="canvas"></canvas>
-        <div id="status" class="muted"></div>
-      </section>
-      <section id="inspector-panel" class="panel">
-        <h2>Inspector</h2>
-        <div id="inspector"></div>
-      </section>
-    </main>
-    <footer id="changes-panel" class="panel">
-      <h2>
-        Changes
-        <button id="undo">Undo</button>
-        <button id="redo">Redo</button>
-        <button id="revert">원본으로</button>
-      </h2>
-      <ol id="changes"></ol>
-    </footer>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span>NyaL2D</div>
+        <span class="divider-v"></span>
+        <div class="doc">
+          <span id="model-name" class="doc-name muted">모델 없음</span>
+          <span id="model-badge" class="badge hide-md" hidden></span>
+        </div>
+        <span class="spacer"></span>
+        <div class="segmented" role="group" aria-label="모션 모드" id="motion-mode">
+          <button type="button" data-mode="idle" aria-pressed="true" title="깜빡임·호흡·시선·머리 흔들림 + 물리">
+            <span class="dot"></span>Idle
+          </button>
+          <button type="button" data-mode="physics" aria-pressed="false" title="물리만. 머리는 직접 움직입니다">
+            <span class="dot"></span>물리만
+          </button>
+          <button type="button" data-mode="off" aria-pressed="false" title="모든 모션 정지">
+            <span class="dot"></span>정지
+          </button>
+        </div>
+        <span class="divider-v"></span>
+        <button id="load-sample" class="btn ghost" type="button" data-icon="sparkle">샘플</button>
+        <label class="btn ghost" data-icon="open" tabindex="0">
+          열기
+          <input id="file-input" type="file" accept=".iki,.json,application/json" class="sr-only" />
+        </label>
+        <button id="capture" class="btn icon" type="button" data-icon="camera" title="현재 프레임을 PNG로 저장" aria-label="프레임 캡처"></button>
+        <button id="export" class="btn primary" type="button" data-icon="download">내보내기</button>
+      </header>
+
+      <aside class="panel panel-left" aria-label="파라미터">
+        <div class="panel-head">
+          <span class="panel-title">Parameters</span>
+          <span id="param-count" class="panel-count"></span>
+          <span class="spacer"></span>
+          <button id="reset-pose" class="btn ghost sm icon" type="button" data-icon="reset" title="모든 파라미터를 기본값으로" aria-label="포즈 초기화"></button>
+        </div>
+        <div class="search" id="param-search-wrap">
+          <input id="param-search" type="search" placeholder="파라미터 검색" aria-label="파라미터 검색" />
+        </div>
+        <div id="params" class="panel-body"></div>
+      </aside>
+
+      <main class="stage" id="stage">
+        <canvas id="canvas" aria-label="모델 미리보기"></canvas>
+        <div class="stage-hud">
+          <span class="hud-chip" id="hud-status"><span class="pulse"></span><span>준비</span></span>
+          <span class="spacer"></span>
+          <span class="hud-chip mono hide-md" id="hud-size"></span>
+        </div>
+        <div class="stage-overlay" id="overlay"><div class="overlay-card" id="overlay-card"></div></div>
+      </main>
+
+      <aside class="panel panel-right" aria-label="인스펙터">
+        <div class="tabs" role="tablist" id="inspector-tabs"></div>
+        <div id="inspector" class="panel-body"></div>
+      </aside>
+
+      <footer class="timeline" aria-label="변경 기록">
+        <span class="timeline-label" data-icon="history">Changes</span>
+        <div class="track" id="changes"></div>
+        <div class="timeline-actions">
+          <button id="undo" class="btn sm" type="button" data-icon="undo" title="실행 취소 (Ctrl+Z)">Undo</button>
+          <button id="redo" class="btn sm" type="button" data-icon="redo" title="다시 실행 (Ctrl+Shift+Z)">Redo</button>
+          <button id="revert" class="btn ghost sm" type="button" data-icon="reset" title="모든 변경을 버리고 원본으로">원본으로</button>
+        </div>
+      </footer>
+    </div>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

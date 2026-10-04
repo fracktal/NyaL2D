@@ -543,9 +543,30 @@ function toolContext(): ToolContext {
   return { runtime, session, modelOpen: hasModel() };
 }
 
+/**
+ * `?open=<path or URL>` opens that file at startup instead of the sample —
+ * a model or layered art (.iki, .psd, .png) served next to the app, e.g. from
+ * the git-ignored `public/local/` folder for art that stays out of the repo.
+ */
+async function openFromQuery(): Promise<boolean> {
+  const src = new URLSearchParams(location.search).get("open");
+  if (!src) return false;
+  const name = decodeURIComponent(src.split(/[/?#]/).filter(Boolean).pop() ?? src);
+  setOverlay({ kind: "loading", label: `${name} 불러오는 중` });
+  try {
+    const res = await fetch(src);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    await openFiles([new File([blob], name, { type: blob.type })]);
+  } catch (err) {
+    setOverlay({ kind: "error", title: `${name}을(를) 불러오지 못했습니다`, detail: (err as Error).message });
+  }
+  return true;
+}
+
 const ready = (async () => {
   await activateRuntime(settings);
-  if (runtime) await loadSample();
+  if (runtime && !(await openFromQuery())) await loadSample();
 })();
 
 window.nyal2d = {

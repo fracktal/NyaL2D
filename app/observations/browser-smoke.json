@@ -1,0 +1,152 @@
+{
+  "webgl2": true,
+  "snapshot": {
+    "name": "auto-rigged",
+    "parameters": 16,
+    "parts": 15,
+    "deformers": 8,
+    "physics": 2
+  },
+  "drivenParameterIds": [
+    "ParamEyeLOpen",
+    "ParamEyeROpen",
+    "ParamBreath",
+    "ParamEyeBallX",
+    "ParamEyeBallY",
+    "ParamAngleX",
+    "ParamAngleY",
+    "ParamAngleZ",
+    "ParamHairSwayX",
+    "ParamHairSwayZ"
+  ],
+  "firstFrame": {
+    "width": 800,
+    "height": 701,
+    "opaque": 243458,
+    "hash": 838078203,
+    "bytes": 457417
+  },
+  "captureOutsideRaf": {
+    "opaque": 0
+  },
+  "restFrame": {
+    "width": 800,
+    "height": 701,
+    "opaque": 243528,
+    "hash": 1174792769,
+    "bytes": 457283
+  },
+  "angleX30Frame": {
+    "width": 800,
+    "height": 701,
+    "opaque": 243599,
+    "hash": 2050476593,
+    "bytes": 457471
+  },
+  "idleFrameHashesDistinct": 4,
+  "hairSwayStepResponse": [
+    [
+      31,
+      0.123
+    ],
+    [
+      230,
+      3.083
+    ],
+    [
+      455,
+      6.579
+    ],
+    [
+      703,
+      6.542
+    ],
+    [
+      897,
+      5.192
+    ],
+    [
+      1110,
+      4.221
+    ],
+    [
+      1313,
+      4.405
+    ],
+    [
+      1541,
+      5.082
+    ],
+    [
+      1724,
+      5.326
+    ],
+    [
+      1904,
+      5.228
+    ]
+  ],
+  "afterEdit": {
+    "changes": [
+      {
+        "seq": 1,
+        "label": "Set physics rig",
+        "source": "inspector"
+      }
+    ],
+    "currentStiffness": 120,
+    "originalStiffness": 30,
+    "runtimeStiffness": 120
+  },
+  "hairSwayStepResponseStiff": [
+    [
+      8,
+      0.486
+    ],
+    [
+      212,
+      7.843
+    ],
+    [
+      460,
+      3.737
+    ],
+    [
+      678,
+      4.665
+    ],
+    [
+      866,
+      6.246
+    ],
+    [
+      1057,
+      4.272
+    ],
+    [
+      1246,
+      4.827
+    ],
+    [
+      1455,
+      5.486
+    ],
+    [
+      1645,
+      4.673
+    ],
+    [
+      1834,
+      4.968
+    ],
+    [
+      2027,
+      5.185
+    ]
+  ],
+  "afterUndo": {
+    "changes": 0,
+    "runtimeStiffness": 30
+  },
+  "console": []
+}

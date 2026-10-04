@@ -1,0 +1,27 @@
+{
+  "name": "nyal2d-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "NyaL2D: AI-native 2D puppet authoring environment (browser prototype on the Iki runtime)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke": "vite build && node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@ikijs/editor": "0.12.1",
+    "@ikijs/engine": "0.3.4",
+    "@ikijs/format": "0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}

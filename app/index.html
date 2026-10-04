@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NyaL2D</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./src/ui/style.css" />
+  </head>
+  <body>
+    <header id="toolbar">
+      <strong>NyaL2D</strong>
+      <span id="model-name" class="muted">모델 없음</span>
+      <span class="spacer"></span>
+      <button id="load-sample">샘플 모델</button>
+      <label class="file-btn">
+        .iki 열기
+        <input id="file-input" type="file" accept=".iki,.json,application/json" hidden />
+      </label>
+      <label
+        >모션
+        <select id="motion-mode">
+          <option value="idle" selected>Idle + 물리</option>
+          <option value="physics">물리만</option>
+          <option value="off">끔</option>
+        </select></label
+      >
+      <button id="capture">프레임 캡처</button>
+      <button id="export">현재 모델 내보내기</button>
+    </header>
+    <main id="workspace">
+      <section id="params-panel" class="panel">
+        <h2>Parameters</h2>
+        <div id="params"></div>
+      </section>
+      <section id="stage">
+        <canvas id="canvas"></canvas>
+        <div id="status" class="muted"></div>
+      </section>
+      <section id="inspector-panel" class="panel">
+        <h2>Inspector</h2>
+        <div id="inspector"></div>
+      </section>
+    </main>
+    <footer id="changes-panel" class="panel">
+      <h2>
+        Changes
+        <button id="undo">Undo</button>
+        <button id="redo">Redo</button>
+        <button id="revert">원본으로</button>
+      </h2>
+      <ol id="changes"></ol>
+    </footer>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

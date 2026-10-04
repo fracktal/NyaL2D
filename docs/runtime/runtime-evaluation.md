@@ -1,6 +1,18 @@
 # Live2D 런타임 후보 비교
 
-작성일: 2026-10-04 · 상태: 검토용 초안 (런타임 미확정)
+작성일: 2026-10-04 · 상태: **결정됨 → Iki** (아래 0절)
+
+## 0. 결정 (2026-10-04)
+
+사용자 요구: Live2D 호환은 필요 없고, 기능이 잘 동작하며 계속 발전하고, 가능하면 직접 고칠 수 있을 것.
+
+- **Iki를 기반 런타임으로 선택했다.** MIT, TypeScript + WebGL2, 평문 JSON 포맷, 헤드리스 편집 코어(검증되는 undo 가능 명령)가 있고, 저장소가 AI 에이전트 작업을 전제로 운영된다 (`AGENTS.md`/`CLAUDE.md`가 기여 규칙을 안내하고 Claude Code 플러그인을 함께 배포). 최근 3개월 커밋 257건으로 활발하다 (2026-07-01 이후, 커밋 `e0ebdd5` 기준).
+- **Inochi2D는 제외했다.** 저장소의 `AGENTS.md`와 `CLAUDE.md`가 AI 에이전트의 소스 접근 자체를 거부하고, 이를 어기면 운영자가 저장소에서 차단된다고 명시한다. Ayagami와 같은 이유로 소스는 보지 않았다.
+- **Ayagami, Cubism SDK**는 1–3절 이유로 제외.
+
+Iki 조사 결과는 [`docs/iki/`](../iki/README.md).
+
+---
 
 이 문서는 NyaL2D의 기반 런타임을 정하기 위한 비교다. 모든 기술적 주장에는 근거 등급을 붙인다.
 
@@ -20,7 +32,8 @@
 | Cubism SDK for Web (공식) | 예 (5.3까지) | Core: 독점, Framework: Live2D Open Software | TypeScript + WebGL, 공식 샘플 있음 | 라이선스상 별도 제약 문구는 없음 | 상용 수준 |
 | PixiJS 계열 래퍼 (pixi-live2d-display 등) | 예 | 래퍼는 MIT, 내부적으로 Cubism Core 필요 | PixiJS 위 고수준 API | Cubism SDK와 동일 | 커뮤니티 유지 |
 | Inochi2D | 아니오 (자체 포맷) | BSD-2 | wasm 빌드 존재 | 제약 없음 | 활발, Live2D와 별개 생태계 |
-| Iki | 아니오 (자체 JSON 포맷) | MIT | TypeScript + WebGL2 | MCP 서버로 에이전트 리깅 지원을 표방 | 0.x, 매우 초기 |
+| Inochi2D (추가 확인) | — | — | — | **`AGENTS.md`가 AI 에이전트의 소스 접근 거부** | — |
+| Iki | 아니오 (자체 JSON 포맷) | MIT | TypeScript + WebGL2 | AI 작업 전제, MCP 서버·Claude Code 플러그인 제공 | 0.x, 초기지만 활발 |
 
 **추천 (Inference)**: 사용자가 기존 Live2D 모델을 불러와 편집하는 것이 목표라면 **Cubism SDK for Web**이 현실적인 유일한 선택지다. Live2D 호환을 포기할 수 있다면 Inochi2D 또는 Iki가 라이선스상 가장 자유롭다. 세부 근거는 아래와 같다.
 

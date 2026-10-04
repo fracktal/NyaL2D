@@ -3,7 +3,7 @@ import { loadIkiModel, type IkiMatrixDeformer } from "@ikijs/format";
 import { describe, expect, it } from "vitest";
 import { fromAnthropic, toAnthropicMessages, toAnthropicTools } from "../server/providers/anthropic";
 import { mockTurn } from "../server/providers/mock";
-import { isLocalOrigin } from "../server/llm-proxy";
+import { isLocalOrigin } from "../server/origin";
 import { AgentSession, type AgentEvent } from "../src/agent/loop";
 import type { LlmClient } from "../src/agent/llm";
 import { LlmError } from "../src/agent/llm";

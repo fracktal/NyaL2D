@@ -10,17 +10,15 @@ const PORT = 4179;
 const OUT = process.env.SMOKE_OUT ?? "smoke-out";
 mkdirSync(OUT, { recursive: true });
 
-const PROXY_PORT = "8797";
-const env = { ...process.env, NYAL2D_PROXY_PORT: PROXY_PORT };
+const env = { ...process.env, NYAL2D_LLM_PROVIDER: "mock" };
 // The agent panel is exercised against the scripted (mock) LLM provider.
-const proxy = spawn("node", ["server/llm-proxy.ts"], { stdio: ["ignore", "ignore", "inherit"], env: { ...env, NYAL2D_LLM_PROVIDER: "mock" } });
 const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], {
   stdio: ["ignore", "ignore", "inherit"],
   env,
 });
 for (let i = 0; ; i++) {
   try {
-    if ((await fetch(`http://localhost:${PORT}/`)).ok) break;
+    if ((await fetch(`http://127.0.0.1:${PORT}/`)).ok) break;
   } catch {}
   if (i > 100) throw new Error("preview server did not start");
   await new Promise((r) => setTimeout(r, 100));
@@ -37,7 +35,7 @@ page.on("pageerror", (e) => consoleLines.push(`[pageerror] ${e.message}`));
 
 const results = {};
 try {
-  await page.goto(`http://localhost:${PORT}/`);
+  await page.goto(`http://127.0.0.1:${PORT}/`);
   await page.evaluate(() => window.nyal2d.ready);
   await page.waitForTimeout(500);
 
@@ -277,5 +275,4 @@ try {
   console.log(JSON.stringify(results, null, 2));
   await browser.close();
   server.kill();
-  proxy.kill();
 }

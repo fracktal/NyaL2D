@@ -1,11 +1,15 @@
 import { defineConfig } from "vite";
+import { nyal2dServer } from "./server/vite-plugin.ts";
 
-// The agent talks to the local LLM proxy (server/llm-proxy.ts) through /llm,
-// so the page stays same-origin and API keys stay in the proxy process.
-const proxy = { "/llm": { target: `http://127.0.0.1:${process.env.NYAL2D_PROXY_PORT ?? 8787}` } };
+// One port for everything: the app, the agent's LLM endpoint (/llm) and the
+// tool connection. The default is uncommon on purpose; when it is taken, Vite
+// moves to the next free port and prints the address. NYAL2D_PORT overrides it.
+const port = Number(process.env.NYAL2D_PORT ?? 47310);
+const host = "127.0.0.1";
 
 export default defineConfig({
   base: "./",
-  server: { proxy },
-  preview: { proxy },
+  plugins: [nyal2dServer()],
+  server: { port, host },
+  preview: { port, host },
 });

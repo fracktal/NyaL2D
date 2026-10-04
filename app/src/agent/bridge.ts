@@ -1,4 +1,4 @@
-import { DEFAULT_BRIDGE_PORT, type BridgeMessage, type PageMessage, type WireToolResult } from "./bridge-protocol";
+import { BRIDGE_PATH, type BridgeMessage, type PageMessage, type WireToolResult } from "./bridge-protocol";
 import type { ToolResult, ToolSpec } from "./tools";
 
 export type BridgeState = "off" | "connecting" | "connected" | "unavailable";
@@ -25,7 +25,7 @@ export class BridgeClient {
   private readonly tools: () => ToolSpec[];
   private readonly call: (name: string, args: unknown) => Promise<ToolResult>;
 
-  constructor(handlers: { tools: () => ToolSpec[]; call: (name: string, args: unknown) => Promise<ToolResult> }, url = `ws://127.0.0.1:${DEFAULT_BRIDGE_PORT}/bridge`) {
+  constructor(handlers: { tools: () => ToolSpec[]; call: (name: string, args: unknown) => Promise<ToolResult> }, url = defaultBridgeUrl()) {
     this.tools = handlers.tools;
     this.call = handlers.call;
     this.url = url;
@@ -138,4 +138,11 @@ export async function blobToBase64(blob: Blob): Promise<string> {
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
+}
+
+/** The app server's bridge endpoint, next to the page (same host and port). */
+function defaultBridgeUrl(): string {
+  const u = new URL(BRIDGE_PATH, location.href);
+  u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+  return u.href;
 }

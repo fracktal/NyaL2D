@@ -7,16 +7,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 const PORT = 4178;
-const PROXY_PORT = "8796";
 const OUT = process.env.SMOKE_OUT ?? "smoke-out";
 const prompt = process.argv[2] ?? "숨 쉬는 동작을 지금보다 절반 정도로 은은하게 해 줘";
 mkdirSync(OUT, { recursive: true });
-const env = { ...process.env, NYAL2D_PROXY_PORT: PROXY_PORT };
-const proxy = spawn("node", ["server/llm-proxy.ts"], { stdio: ["ignore", "inherit", "inherit"], env: { ...env, NYAL2D_LLM_PROVIDER: "claude-code" } });
+const env = { ...process.env, NYAL2D_LLM_PROVIDER: "claude-code" };
 const server = spawn("npx", ["vite", "preview", "--port", String(PORT), "--strictPort"], { stdio: ["ignore", "ignore", "inherit"], env });
 for (let i = 0; ; i++) {
   try {
-    if ((await fetch(`http://localhost:${PORT}/`)).ok) break;
+    if ((await fetch(`http://127.0.0.1:${PORT}/`)).ok) break;
   } catch {}
   if (i > 100) throw new Error("preview server did not start");
   await new Promise((r) => setTimeout(r, 100));
@@ -27,7 +25,7 @@ const log = [];
 page.on("console", (m) => log.push(`[${m.type()}] ${m.text()}`));
 const results = { prompt };
 try {
-  await page.goto(`http://localhost:${PORT}/`);
+  await page.goto(`http://127.0.0.1:${PORT}/`);
   await page.evaluate(() => window.nyal2d.ready);
   await page.click('#panel-switch button[data-view="agent"]');
   await page.waitForSelector(".agent-status.ok", { timeout: 60_000 });
@@ -53,5 +51,4 @@ try {
   console.log(JSON.stringify(results, null, 2));
   await browser.close();
   server.kill();
-  proxy.kill();
 }

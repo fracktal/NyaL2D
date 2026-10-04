@@ -9,8 +9,6 @@ export interface Provider {
   health(): Promise<ProxyHealth>;
   turn?(req: TurnRequest, signal: AbortSignal): Promise<TurnResponse>;
   run?(req: RunRequest, signal: AbortSignal, emit: (e: RunEvent) => void): Promise<void>;
-  /** Extra HTTP routes the provider serves (e.g. the MCP endpoint). Return true if handled. */
-  handle?(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse, url: URL): Promise<boolean>;
   close?(): Promise<void>;
 }
 

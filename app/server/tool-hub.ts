@@ -2,16 +2,17 @@
  * Tool hub: holds the WebSocket connection to a NyaL2D page and exposes that
  * page's agent tools as an MCP server.
  *
- * Two hosts use it:
- * - server/mcp-bridge.ts, over stdio, for Claude Code / Claude Desktop that
- *   the person runs themselves;
- * - the LLM proxy's "claude-code" provider, over HTTP, for requests typed in
- *   the app's own Agent panel.
+ * It lives in the app server (server/app-server.ts), on the same port as the
+ * app: the page connects to /llm/bridge, and MCP clients reach the tools at
+ * /llm/mcp, either the "claude-code" provider (requests typed in the Agent
+ * panel) or server/mcp-bridge.ts (Claude Code / Claude Desktop the person runs).
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
-import { DEFAULT_BRIDGE_PORT, type BridgeMessage, type PageMessage, type WireToolResult } from "../src/agent/bridge-protocol.ts";
+import { type BridgeMessage, type PageMessage, type WireToolResult } from "../src/agent/bridge-protocol.ts";
 import { MCP_INSTRUCTIONS } from "../src/agent/prompt.ts";
 import type { ToolSpec } from "../src/agent/tools.ts";
 import { isLocalOrigin } from "./origin.ts";
@@ -29,8 +30,9 @@ const STATUS_TOOL: ToolSpec = {
 };
 
 export interface ToolHub {
-  readonly port: number;
   readonly connected: boolean;
+  /** Take over an HTTP upgrade request for the page's WebSocket. */
+  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void;
   /** Resolves once a page has sent its tool list, or after `timeoutMs`. */
   waitForPage(timeoutMs: number): Promise<boolean>;
   call(name: string, args: unknown): Promise<WireToolResult>;
@@ -41,7 +43,7 @@ export interface ToolHub {
   close(): Promise<void>;
 }
 
-export async function startToolHub(opts: { port?: number; log?: (msg: string) => void } = {}): Promise<ToolHub> {
+export function createToolHub(opts: { log?: (msg: string) => void } = {}): ToolHub {
   const log = opts.log ?? ((m: string) => console.error(`[nyal2d] ${m}`));
   let page: WebSocket | undefined;
   let tools: ToolSpec[] = [];
@@ -56,15 +58,7 @@ export async function startToolHub(opts: { port?: number; log?: (msg: string) =>
     for (const s of servers) s.sendToolListChanged().catch(() => {});
   };
 
-  const wss = new WebSocketServer({ host: "127.0.0.1", port: opts.port ?? Number(process.env.NYAL2D_BRIDGE_PORT ?? DEFAULT_BRIDGE_PORT), path: "/bridge" });
-  await new Promise<void>((resolve, reject) => {
-    wss.once("listening", resolve);
-    wss.once("error", reject);
-  }).catch((err: Error) => {
-    log(`WebSocket 포트를 열지 못했습니다: ${err.message}. 다른 NyaL2D 브리지나 프록시가 이미 실행 중인지 확인하세요.`);
-    throw err;
-  });
-  const port = (wss.address() as { port: number }).port;
+  const wss = new WebSocketServer({ noServer: true });
 
   wss.on("connection", (ws, req) => {
     if (!isLocalOrigin(req.headers.origin)) {
@@ -111,9 +105,12 @@ export async function startToolHub(opts: { port?: number; log?: (msg: string) =>
   });
 
   const hub: ToolHub = {
-    port,
     get connected() {
       return !!page;
+    },
+
+    handleUpgrade(req, socket, head) {
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
     },
 
     waitForPage(timeoutMs) {
@@ -169,7 +166,7 @@ export async function startToolHub(opts: { port?: number; log?: (msg: string) =>
     async close() {
       for (const s of servers) await s.close().catch(() => {});
       for (const ws of wss.clients) ws.terminate();
-      await new Promise<void>((r) => wss.close(() => r()));
+      wss.close();
     },
   };
   return hub;

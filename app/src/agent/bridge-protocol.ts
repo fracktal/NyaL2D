@@ -20,4 +20,5 @@ export type BridgeMessage =
   | { type: "client"; name?: string; version?: string }
   | { type: "call"; id: string; name: string; args: unknown };
 
-export const DEFAULT_BRIDGE_PORT = 8788;
+/** Path of the page's WebSocket on the app server (same origin as the page). */
+export const BRIDGE_PATH = "llm/bridge";

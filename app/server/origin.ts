@@ -1,5 +1,5 @@
 /**
- * Only pages served from this machine may use the proxy: it spends the
+ * Only pages served from this machine may use the app server: it spends the
  * user's API credit, so an arbitrary website must not be able to call it.
  */
 export function isLocalOrigin(origin: string | undefined): boolean {

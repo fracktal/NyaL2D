@@ -1,4 +1,3 @@
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -6,14 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MCP_INSTRUCTIONS } from "../../src/agent/prompt.ts";
 import type { RunEvent } from "../../src/agent/protocol.ts";
-import { startToolHub, type ToolHub } from "../tool-hub.ts";
+import type { ToolHub } from "../tool-hub.ts";
 import type { Provider } from "./types.ts";
 
 /**
  * Runs each Agent-panel request through the Claude Code CLI on this machine,
  * signed in with the person's own Claude account, so no API key is needed.
  *
- * Claude Code gets exactly one MCP server, served by this proxy at /mcp,
+ * Claude Code gets exactly one MCP server, the app server's /llm/mcp,
  * whose tools are the open NyaL2D page's tools (through the tool hub); its
  * built-in tools (files, shell, web) are disabled. Conversations continue
  * across requests with --resume.
@@ -21,9 +20,9 @@ import type { Provider } from "./types.ts";
  * Meant for trying the agent locally. Claude Code's own terms apply: a
  * product shipped to other people should use an API key provider instead.
  */
-export async function createClaudeCodeProvider(opts: { proxyPort: number; command?: string; model?: string }): Promise<Provider> {
+export function createClaudeCodeProvider(opts: { hub: ToolHub; mcpUrl: () => string; command?: string; model?: string }): Provider {
   const command = opts.command ?? "claude";
-  const hub: ToolHub = await startToolHub();
+  const hub = opts.hub;
   const workdir = join(tmpdir(), "nyal2d-agent");
   mkdirSync(workdir, { recursive: true });
   let healthCache: { at: number; ready: boolean; detail?: string } | undefined;
@@ -34,23 +33,9 @@ export async function createClaudeCodeProvider(opts: { proxyPort: number; comman
       return { provider: "claude-code", model: opts.model ?? "Claude Code", mode: "run", ready: healthCache.ready, detail: healthCache.detail };
     },
 
-    async handle(req, res, url) {
-      if (url.pathname !== "/mcp") return false;
-      // Stateless Streamable HTTP: a fresh MCP server per request.
-      const server = hub.createMcpServer();
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-      res.on("close", () => {
-        void transport.close();
-        void server.close();
-      });
-      await server.connect(transport);
-      await transport.handleRequest(req, res);
-      return true;
-    },
-
     async run(req, signal, emit) {
       if (!(await hub.waitForPage(8_000))) {
-        emit({ type: "error", error: "NyaL2D 페이지가 프록시에 연결되지 않았습니다. 페이지를 새로고침해 보세요." });
+        emit({ type: "error", error: "NyaL2D 페이지가 서버에 연결되지 않았습니다. 페이지를 새로고침해 보세요." });
         return;
       }
       hub.announce({ name: "Claude Code", version: "app" });
@@ -66,7 +51,7 @@ export async function createClaudeCodeProvider(opts: { proxyPort: number; comman
         "",
         "--strict-mcp-config",
         "--mcp-config",
-        JSON.stringify({ mcpServers: { nyal2d: { type: "http", url: `http://127.0.0.1:${opts.proxyPort}/mcp` } } }),
+        JSON.stringify({ mcpServers: { nyal2d: { type: "http", url: opts.mcpUrl() } } }),
         "--allowedTools",
         "mcp__nyal2d",
         "--append-system-prompt",
@@ -75,8 +60,6 @@ export async function createClaudeCodeProvider(opts: { proxyPort: number; comman
       ];
       await runClaude(command, args, workdir, signal, emit, sessionId);
     },
-
-    close: () => hub.close(),
   };
 }
 

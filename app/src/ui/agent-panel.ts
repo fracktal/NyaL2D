@@ -244,14 +244,14 @@ export function mountAgentPanel(
       opts.onHealth?.(health);
       syncLink();
       if (!health.ready) setStatus("warn", `${health.provider} 준비 안 됨`, health.detail ?? "");
-      else if (health.provider === "mock") setStatus("mock", "모의 응답 모드", "프록시가 NYAL2D_LLM_PROVIDER=mock으로 실행 중입니다");
+      else if (health.provider === "mock") setStatus("mock", "모의 응답 모드", "앱 서버가 NYAL2D_LLM_PROVIDER=mock으로 실행 중입니다");
       else if (health.mode === "run") setStatus("ok", `${health.model} · 내 Claude 계정`, "로컬 Claude Code CLI가 요청을 처리합니다 (API 키 불필요)");
-      else setStatus("ok", modelLabel(health.model), `${health.provider} · 로컬 프록시 경유`);
+      else setStatus("ok", modelLabel(health.model), `${health.provider} · 로컬 앱 서버 경유`);
     } catch (err) {
       health = undefined;
       opts.onHealth?.(undefined);
       syncLink();
-      setStatus("warn", "프록시 연결 안 됨", (err as Error).message);
+      setStatus("warn", "앱 서버 연결 안 됨", (err as Error).message);
     }
   }
 

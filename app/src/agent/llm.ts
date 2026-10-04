@@ -14,7 +14,7 @@ export class LlmError extends Error {
   }
 }
 
-/** Talks to the local proxy (app/server/llm-proxy.ts), by default through the dev server's `/llm` route. */
+/** Talks to the app server (app/server/app-server.ts) at `/llm`, mounted on the same dev/preview server as the page. */
 export class ProxyLlmClient implements LlmClient {
   readonly baseUrl: string;
 
@@ -27,7 +27,7 @@ export class ProxyLlmClient implements LlmClient {
     try {
       res = await fetch(`${this.baseUrl}/health`, { cache: "no-store" });
     } catch {
-      throw new LlmError("로컬 프록시에 연결하지 못했습니다. `npm run proxy`로 실행하세요.", true);
+      throw new LlmError("앱 서버에 연결하지 못했습니다. app 폴더에서 `npm run dev`로 실행한 주소로 열었는지 확인하세요.", true);
     }
     if (!res.ok) throw await toError(res);
     return (await res.json()) as ProxyHealth;
@@ -44,7 +44,7 @@ export class ProxyLlmClient implements LlmClient {
       });
     } catch (err) {
       if ((err as Error).name === "AbortError") throw err;
-      throw new LlmError("로컬 프록시에 연결하지 못했습니다. `npm run proxy`로 실행하세요.", true);
+      throw new LlmError("앱 서버에 연결하지 못했습니다. app 폴더에서 `npm run dev`로 실행한 주소로 열었는지 확인하세요.", true);
     }
     if (!res.ok) throw await toError(res);
     return (await res.json()) as TurnResponse;
@@ -56,10 +56,10 @@ async function toError(res: Response): Promise<LlmError> {
     const body = (await res.json()) as ProxyError;
     if (body?.error) return new LlmError(body.error, !!body.retryable);
   } catch {
-    // Not JSON: the dev server answered because the proxy is not running.
+    // Not JSON: something other than the NyaL2D app server answered (e.g. a static file server).
   }
   if (res.status === 404 || res.status === 502 || res.status === 504) {
-    return new LlmError("로컬 프록시가 응답하지 않습니다. `npm run proxy`로 실행하세요.", true);
+    return new LlmError("에이전트 서버가 없습니다. 정적 파일 서버 대신 `npm run dev`(또는 `npm run preview`)로 실행하세요.", true);
   }
-  return new LlmError(`프록시 오류 (HTTP ${res.status})`, res.status >= 500);
+  return new LlmError(`앱 서버 오류 (HTTP ${res.status})`, res.status >= 500);
 }

@@ -1,22 +1,29 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { createServer, type Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import type { BridgeMessage, PageMessage } from "../src/agent/bridge-protocol";
-import { NOT_CONNECTED, startToolHub, type ToolHub } from "../server/tool-hub";
+import { createToolHub, NOT_CONNECTED, type ToolHub } from "../server/tool-hub";
 
 let hub: ToolHub;
+let http: Server;
+let port: number;
 
 beforeEach(async () => {
-  hub = await startToolHub({ port: 0, log: () => {} });
+  hub = createToolHub({ log: () => {} });
+  http = createServer().on("upgrade", (req, socket, head) => hub.handleUpgrade(req, socket, head));
+  await new Promise<void>((r) => http.listen(0, "127.0.0.1", r));
+  port = (http.address() as { port: number }).port;
 });
 afterEach(async () => {
   await hub.close();
+  await new Promise((r) => http.close(r));
 });
 
 /** A fake NyaL2D page: answers each call with the tool name and arguments. */
 async function connectPage(origin?: string): Promise<{ ws: WebSocket; seen: BridgeMessage[] }> {
-  const ws = new WebSocket(`ws://127.0.0.1:${hub.port}/bridge`, origin ? { origin } : {});
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/bridge`, origin ? { origin } : {});
   const seen: BridgeMessage[] = [];
   ws.on("message", (raw) => {
     const msg = JSON.parse(String(raw)) as BridgeMessage;
@@ -64,7 +71,7 @@ describe("tool hub", () => {
   });
 
   it("refuses pages from other origins", async () => {
-    const ws = new WebSocket(`ws://127.0.0.1:${hub.port}/bridge`, { origin: "https://evil.example" });
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/bridge`, { origin: "https://evil.example" });
     const code = await new Promise<number>((r) => ws.on("close", (c) => r(c)));
     expect(code).toBe(1008);
     expect(hub.connected).toBe(false);

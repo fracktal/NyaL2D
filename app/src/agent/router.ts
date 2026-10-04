@@ -15,11 +15,11 @@ export interface AgentDriver {
 }
 
 /**
- * One agent for the panel, whichever way the proxy runs it:
+ * One agent for the panel, whichever way the app server runs it:
  *
  * - "turn" mode: {@link AgentSession} runs the loop in the page and asks the
- *   proxy for one model turn at a time (API-key providers, mock).
- * - "run" mode: the proxy hands the whole request to Claude Code, which calls
+ *   app server for one model turn at a time (API-key providers, mock).
+ * - "run" mode: the app server hands the whole request to Claude Code, which calls
  *   the page's tools over the {@link BridgeClient}; this class streams Claude
  *   Code's text and turns the bridge's tool calls into transcript steps.
  *
@@ -101,7 +101,7 @@ export class AgentRouter implements AgentDriver {
       });
       if (!res.ok || !res.body) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new LlmError(body.error ?? `프록시 오류 (HTTP ${res.status})`, res.status >= 500);
+        throw new LlmError(body.error ?? `앱 서버 오류 (HTTP ${res.status})`, res.status >= 500);
       }
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
       let buf = "";
@@ -116,10 +116,10 @@ export class AgentRouter implements AgentDriver {
           if (line) onEvent(JSON.parse(line) as RunEvent);
         }
       }
-      if (!ended) this.emit({ type: "error", message: "프록시 응답이 중간에 끊겼습니다", retryable: true });
+      if (!ended) this.emit({ type: "error", message: "앱 서버 응답이 중간에 끊겼습니다", retryable: true });
     } catch (err) {
       if ((err as Error).name === "AbortError") this.emit({ type: "done", note: "중단했습니다." });
-      else this.emit({ type: "error", message: err instanceof TypeError ? "로컬 프록시에 연결하지 못했습니다." : (err as Error).message, retryable: err instanceof LlmError ? err.retryable : true });
+      else this.emit({ type: "error", message: err instanceof TypeError ? "앱 서버에 연결하지 못했습니다." : (err as Error).message, retryable: err instanceof LlmError ? err.retryable : true });
     } finally {
       this.runAbort = undefined;
       this.emit({ type: "busy", busy: false });

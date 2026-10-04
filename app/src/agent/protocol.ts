@@ -1,6 +1,6 @@
 /**
  * Wire format between the browser agent loop and the local LLM proxy
- * (app/server/llm-proxy.ts).
+ * (app/server/app-server.ts).
  *
  * It is deliberately provider-neutral: the browser never sees a provider's
  * request shape, and each proxy provider maps this format onto its own API.

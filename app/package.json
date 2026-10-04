@@ -6,14 +6,12 @@
   "description": "NyaL2D: AI-native 2D puppet authoring environment (browser prototype on the Iki runtime)",
   "scripts": {
     "dev": "vite",
+    "dev:mock": "NYAL2D_LLM_PROVIDER=mock vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "vite build && node scripts/smoke.mjs",
-    "proxy": "node server/llm-proxy.ts",
-    "proxy:mock": "NYAL2D_LLM_PROVIDER=mock node server/llm-proxy.ts",
-    "proxy:claude": "NYAL2D_LLM_PROVIDER=claude-code node server/llm-proxy.ts",
     "mcp": "node server/mcp-bridge.ts"
   },
   "dependencies": {

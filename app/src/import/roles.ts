@@ -122,6 +122,9 @@ export interface RawLayerInfo {
   order: number;
   /** Opaque bounding box in canvas px, or null for an empty layer. */
   bbox: Box | null;
+  /** False for a hidden alternative (a PSDTool variant not shown by default):
+   *  it gets a role like any layer but does not move the face reference. */
+  reference?: boolean;
 }
 
 export type RoleAssignment =
@@ -166,10 +169,10 @@ export function assignRoles(layers: RawLayerInfo[], roles: ReadonlySet<string>):
   });
 
   const isFace = (i: number) => (out[i]?.kind === "role" && (out[i] as { role: string | null }).role === "face") || (!out[i] && feature[i] === "face");
-  const faceIdx = layers.map((_, i) => i).filter(isFace);
+  const faceIdx = layers.map((_, i) => i).filter((i) => isFace(i) && layers[i].reference !== false);
   const faceBox = union(faceIdx.map((i) => layers[i].bbox!));
   // Pair centre: the face's centre column, or failing a face, that of the paired features.
-  const pairIdx = layers.map((_, i) => i).filter((i) => !out[i] && feature[i] === "eye");
+  const pairIdx = layers.map((_, i) => i).filter((i) => !out[i] && feature[i] === "eye" && layers[i].reference !== false);
   const ref = faceBox ?? union(pairIdx.map((i) => layers[i].bbox!));
   const midX = ref ? ref.x + ref.w / 2 : undefined;
   const faceTop = faceIdx.length ? Math.max(...faceIdx.map((i) => layers[i].order)) : undefined;

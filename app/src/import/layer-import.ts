@@ -24,8 +24,10 @@ import {
   type AtlasAssignment,
   type AtlasLayout,
 } from "@ikijs/editor";
+import { parseIkiModel, type IkiModel } from "@ikijs/format";
 import { readPsd, type Layer as PsdLayer } from "ag-psd";
 import { assignRoles, cleanName, visibleChildren, type Box, type RawLayerInfo, type RoleAssignment } from "./roles";
+import { addVariantParts, planVariants, type Stage, type VariantCrop, type VariantGroup } from "./variants";
 
 /** Every role the auto-rig knows, bottom to top (`@ikijs/editor` ROLE_TABLE). */
 export const RIG_ROLES = [
@@ -51,6 +53,8 @@ export interface ImportReport {
   roles: { role: string; from: string[] }[];
   /** Source layers left out, with why. */
   dropped: { layer: string; reason: string }[];
+  /** Hidden expression variants turned into parameter-driven drawings. */
+  variants: { stage: Stage; option: string; parts: string[] }[];
 }
 
 export interface ImportResult {
@@ -73,6 +77,9 @@ interface RawLayer extends RawLayerInfo {
   top: number;
   /** Index of the layer this one is clipped to, if any. */
   clipTo?: number;
+  /** Membership in a PSDTool `*` radio group: which option this layer draws,
+   *  and whether that option is the one shown by default. */
+  variant?: { group: number; option: string; chosen: boolean };
 }
 
 interface SourceDoc {
@@ -80,6 +87,8 @@ interface SourceDoc {
   height: number;
   layers: RawLayer[];
   dropped: { layer: string; reason: string }[];
+  /** Number of `*` radio groups seen (ids 0..n-1). */
+  radioGroups: number;
 }
 
 export async function importLayeredArt(files: File[]): Promise<ImportResult> {
@@ -93,9 +102,27 @@ export async function importLayeredArt(files: File[]): Promise<ImportResult> {
     if (l.clipTo !== undefined) assignment[i] = assignment[l.clipTo];
   });
 
+  // Expression variants: which hidden options become which stage, and which
+  // option is drawn as the role itself (a closed mouth replaces an open default).
+  const picks = planVariants(variantGroups(src, assignment));
+  const pickOf = (l: RawLayer) => l.variant && picks.find((p) => p.group === l.variant!.group && p.option === l.variant!.option);
+  const inBase = src.layers.map((l) => {
+    if (!l.variant) return true;
+    const pick = pickOf(l);
+    if (pick?.stage === "mouthRest") return true;
+    if (!l.variant.chosen) return false;
+    // The default option leaves the base when a rest shape replaces it.
+    const replaced = picks.some((p) => p.group === l.variant!.group && p.stage === "mouthRest");
+    return !replaced;
+  });
+  const stages = picks
+    .filter((p) => p.stage !== "mouthRest")
+    .map((p) => ({ ...p, layers: src.layers.map((l, i) => (l.variant?.group === p.group && l.variant.option === p.option ? i : -1)).filter((i) => i >= 0) }));
+
   const from = new Map<string, string[]>();
   const dropped = [...src.dropped];
   src.layers.forEach((l, i) => {
+    if (!inBase[i]) return;
     const a = assignment[i];
     const roles = a.kind === "split" ? [a.L, a.R] : a.role ? [a.role] : [];
     if (!roles.length) dropped.push({ layer: l.label, reason: l.bbox ? "역할 없음" : "빈 레이어" });
@@ -116,9 +143,9 @@ export async function importLayeredArt(files: File[]): Promise<ImportResult> {
 
   let scale = Math.min(1, MAX_SIDE / Math.max(src.width, src.height));
   for (;;) {
-    const result = await rig(src, assignment, scale);
+    const result = await rig(src, assignment, inBase, stages, scale);
     if (result) {
-      const model = result.toIkiModel();
+      const { model, added } = result;
       model.name = name;
       return {
         name,
@@ -128,6 +155,9 @@ export async function importLayeredArt(files: File[]): Promise<ImportResult> {
           canvas: model.canvas,
           roles: RIG_ROLES.filter((r) => from.has(r) && model.parts.some((p) => p.id === r)).map((r) => ({ role: r, from: from.get(r)! })),
           dropped,
+          variants: picks
+            .map((p) => ({ stage: p.stage, option: p.option, parts: p.stage === "mouthRest" ? ["mouth"] : added.filter((id) => id.endsWith(`__${p.stage}`)) }))
+            .filter((v) => v.parts.length),
         },
       };
     }
@@ -136,12 +166,35 @@ export async function importLayeredArt(files: File[]): Promise<ImportResult> {
   }
 }
 
+/** Each `*` radio group's options: default or not, drawn box, and the roles their layers took. */
+function variantGroups(src: SourceDoc, assignment: RoleAssignment[]): VariantGroup[] {
+  const groups: VariantGroup[] = Array.from({ length: src.radioGroups }, (_, id) => ({ id, options: [] }));
+  src.layers.forEach((l, i) => {
+    if (!l.variant) return;
+    const g = groups[l.variant.group];
+    let o = g.options.find((x) => x.name === l.variant!.option);
+    if (!o) g.options.push((o = { name: l.variant.option, chosen: l.variant.chosen, bbox: null, roles: [] }));
+    if (l.bbox) o.bbox = o.bbox ? unionBox(o.bbox, l.bbox) : l.bbox;
+    const a = assignment[i];
+    for (const r of a.kind === "split" ? [a.L, a.R] : a.role ? [a.role] : []) if (!o.roles.includes(r)) o.roles.push(r);
+  });
+  return groups;
+}
+
+function unionBox(a: Box, b: Box): Box {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+}
+
+type StageLayers = { stage: Stage; option: string; layers: number[] };
+
 /** Composite, measure, rig and texture at one scale; undefined when the atlas would be too large. */
-async function rig(src: SourceDoc, assignment: RoleAssignment[], scale: number): Promise<EditorDocument | undefined> {
+async function rig(src: SourceDoc, assignment: RoleAssignment[], inBase: boolean[], stages: StageLayers[], scale: number): Promise<{ model: IkiModel; added: string[] } | undefined> {
   const W = Math.max(1, Math.round(src.width * scale));
   const H = Math.max(1, Math.round(src.height * scale));
 
-  // One canvas per role, layers drawn bottom to top.
+  // One canvas per role (and per role × stage for variants), layers drawn bottom to top.
   const canvases = new Map<string, HTMLCanvasElement>();
   const target = (role: string) => {
     let c = canvases.get(role);
@@ -159,20 +212,22 @@ async function rig(src: SourceDoc, assignment: RoleAssignment[], scale: number):
     if (!b) bitmaps.set(i, (b = await createImageBitmap(src.layers[i].image, { premultiplyAlpha: "none" })));
     return b;
   };
-  try {
-    for (let i = 0; i < src.layers.length; i++) {
-      const l = src.layers[i];
-      const a = assignment[i];
-      if (!l.bbox || (a.kind === "role" && !a.role)) continue;
-      const drawn = await layerOnCanvas(l, await bitmapOf(i), l.clipTo !== undefined ? src.layers[l.clipTo] : undefined, l.clipTo !== undefined ? await bitmapOf(l.clipTo) : undefined, W, H, scale);
-      if (a.kind === "split") {
-        const at = Math.round(a.atX * scale);
-        target(a.L).drawImage(drawn, at, 0, W - at, H, at, 0, W - at, H);
-        if (at > 0) target(a.R).drawImage(drawn, 0, 0, at, H, 0, 0, at, H);
-      } else {
-        target(a.role!).drawImage(drawn, 0, 0);
-      }
+  const draw = async (i: number, suffix: string) => {
+    const l = src.layers[i];
+    const a = assignment[i];
+    if (!l.bbox || (a.kind === "role" && !a.role)) return;
+    const drawn = await layerOnCanvas(l, await bitmapOf(i), l.clipTo !== undefined ? src.layers[l.clipTo] : undefined, l.clipTo !== undefined ? await bitmapOf(l.clipTo) : undefined, W, H, scale);
+    if (a.kind === "split") {
+      const at = Math.round(a.atX * scale);
+      target(a.L + suffix).drawImage(drawn, at, 0, W - at, H, at, 0, W - at, H);
+      if (at > 0) target(a.R + suffix).drawImage(drawn, 0, 0, at, H, 0, 0, at, H);
+    } else {
+      target(a.role! + suffix).drawImage(drawn, 0, 0);
     }
+  };
+  try {
+    for (let i = 0; i < src.layers.length; i++) if (inBase[i]) await draw(i, "");
+    for (const s of stages) for (const i of s.layers) await draw(i, `__${s.stage}`);
   } finally {
     for (const b of bitmaps.values()) b.close();
   }
@@ -196,14 +251,37 @@ async function rig(src: SourceDoc, assignment: RoleAssignment[], scale: number):
       c.width = c.height = 0;
     }
     const { turnOptions } = measurer.finish();
+
+    // Variant drawings, cropped to their own boxes, only for roles that made it.
+    const boxes = new Map<string, Box>();
+    for (const [key, c] of canvases) {
+      const [role, stage] = key.split("__");
+      if (!stage || !layers.some((l) => l.role === role) || !c.width) continue;
+      const box = alphaBox(c.getContext("2d")!.getImageData(0, 0, W, H), 0, 0);
+      if (!box) continue;
+      boxes.set(key, box);
+      crops.push({ id: key, width: box.w, height: box.h, bitmap: await createImageBitmap(c, box.x, box.y, box.w, box.h, { premultiplyAlpha: "none" }) });
+      c.width = c.height = 0;
+    }
+
     const layout = packAtlas(crops.map(({ id, width, height }) => ({ id, width, height })));
     if (layout.pageWidth > MAX_ATLAS || layout.pageHeight > MAX_ATLAS) return undefined;
 
     const doc = new EditorDocument(generateIkiFromLayerSet(layers, { width: W, height: H }, turnOptions));
     const page = { width: layout.pageWidth, height: layout.pageHeight };
-    const partTextureAssignments: AtlasAssignment[] = layout.placements.map((p) => ({ partId: p.id, uv: uvRectFor(p, page) }));
+    const partTextureAssignments: AtlasAssignment[] = layout.placements.filter((p) => !boxes.has(p.id)).map((p) => ({ partId: p.id, uv: uvRectFor(p, page) }));
     doc.applyAtlas({ textures: [{ source: renderAtlas(crops, layout) }], partTextureAssignments });
-    return doc;
+
+    const model = doc.toIkiModel();
+    const variantCrops: VariantCrop[] = layout.placements
+      .filter((p) => boxes.has(p.id))
+      .map((p) => {
+        const [role, stage] = p.id.split("__");
+        return { role, stage: stage as VariantCrop["stage"], box: boxes.get(p.id)!, uv: uvRectFor(p, page) };
+      });
+    const added = addVariantParts(model, variantCrops);
+    // Re-validate: the variant parts were written by hand, not through editor commands.
+    return { model: parseIkiModel(model), added };
   } finally {
     for (const c of crops) c.bitmap.close();
   }
@@ -265,18 +343,26 @@ async function readPsdLayers(file: File): Promise<SourceDoc> {
 
   const layers: RawLayer[] = [];
   const dropped: SourceDoc["dropped"] = [];
-  const walk = (children: PsdLayer[], path: string[], opacity: number) => {
+  let radioGroups = 0;
+  // `variant` is the radio option this subtree belongs to. Inside an option
+  // that is not shown, nested radios are not explored: only that option's own
+  // default content is the alternative drawing.
+  const walk = (children: PsdLayer[], path: string[], opacity: number, variant?: RawLayer["variant"]) => {
     const shown = new Set(visibleChildren(children));
+    const radio = children.filter((c) => (c.name ?? "").startsWith("*") && !/:flip[xy]+$/i.test(c.name ?? ""));
+    const gid = radio.length > 1 && (!variant || variant.chosen) ? radioGroups++ : -1;
     let base: number | undefined;
     for (const c of children) {
       const name = c.name ?? "(이름 없음)";
       const label = [...path, name].map(cleanName).join("/");
-      if (!shown.has(c)) {
+      let tag = variant;
+      if (gid >= 0 && radio.includes(c)) tag = { group: gid, option: cleanName(name), chosen: shown.has(c) && (!variant || variant.chosen) };
+      else if (!shown.has(c)) {
         if (!c.clipping) base = undefined;
         continue;
       }
       if (c.children) {
-        walk(c.children, [...path, name], opacity * (c.opacity ?? 1));
+        walk(c.children, [...path, name], opacity * (c.opacity ?? 1), tag);
         base = undefined;
         continue;
       }
@@ -295,6 +381,10 @@ async function readPsdLayers(file: File): Promise<SourceDoc> {
         top: c.top ?? 0,
         bbox: alphaBox(image, c.left ?? 0, c.top ?? 0),
       };
+      if (tag) {
+        layer.variant = tag;
+        if (!tag.chosen) layer.reference = false;
+      }
       if (c.clipping && base !== undefined) layer.clipTo = base;
       else base = layers.length;
       layers.push(layer);
@@ -302,7 +392,7 @@ async function readPsdLayers(file: File): Promise<SourceDoc> {
   };
   walk(psd.children ?? [], [], 1);
   if (!layers.length) throw new Error("PSD에 가져올 수 있는 래스터 레이어가 없습니다");
-  return { width: psd.width, height: psd.height, layers, dropped };
+  return { width: psd.width, height: psd.height, layers, dropped, radioGroups };
 }
 
 /** A PSD layer's pixels as straight-alpha 8-bit RGBA, with opacity and mask folded into alpha. */
@@ -360,7 +450,7 @@ async function readImageLayers(files: File[]): Promise<SourceDoc> {
     const image = ctx.getImageData(0, 0, W, H);
     layers.push({ path: [f.name], label: f.name, order: layers.length, image, left: 0, top: 0, bbox: alphaBox(image, 0, 0) });
   }
-  return { width: W, height: H, layers, dropped: [] };
+  return { width: W, height: H, layers, dropped: [], radioGroups: 0 };
 }
 
 function alphaBox(img: ImageData, left: number, top: number): Box | null {

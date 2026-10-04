@@ -99,7 +99,8 @@ const tachie = psd([
     L("前髪", rgba.hair_front),
     G("!眉", [L("*怒り眉", solid(400, 100, 300, 40, [255, 0, 0, 255]), { hidden: true }), L("*普通眉", merge("brow_L", "brow_R"))]),
     G("!目", [
-      L("*閉じ目", solid(400, 300, 300, 40, [255, 0, 0, 255]), { hidden: true }),
+      // A hidden closed-eye drawing (the lash line alone): becomes the drawn blink.
+      L("*閉じ目", merge("lash_L", "lash_R"), { hidden: true }),
       G("*普通目", [L("まつげ", merge("lash_L", "lash_R")), L("黒目", merge("iris_L", "iris_R")), L("白目", merge("eye_L", "eye_R"))]),
     ]),
     G("!口", [L("*あー", rgba.mouth_open, { hidden: true }), L("*ほほえみ", rgba.mouth)]),
@@ -140,7 +141,8 @@ const pngSet = [
 
 const cases = [
   { name: "see-through", files: [{ name: "see-through.psd", mimeType: "image/vnd.adobe.photoshop", buffer: seeThrough }] },
-  { name: "tachie", files: [{ name: "tachie.psd", mimeType: "image/vnd.adobe.photoshop", buffer: tachie }] },
+  // Its * variants become parts that swap by parameter: the closed eye, and the hidden open mouth.
+  { name: "tachie", expect: ["eye_L__eyeClosed", "eye_R__eyeClosed", "mouth__mouthOpen"], files: [{ name: "tachie.psd", mimeType: "image/vnd.adobe.photoshop", buffer: tachie }] },
   { name: "png-set", model: "layers", files: await Promise.all(pngSet.map(async ([name, d]) => ({ name, mimeType: "image/png", buffer: await png(d) }))) },
 ];
 
@@ -161,6 +163,11 @@ for (const c of cases) {
   if (r.error) {
     failed = true;
     continue;
+  }
+  const missing = (c.expect ?? []).filter((id) => !r.parts.includes(id));
+  if (missing.length) {
+    r.missing = missing;
+    failed = true;
   }
   await page.evaluate(() => window.nyal2d.runtime.setMotionMode("off"));
   await page.waitForTimeout(300);

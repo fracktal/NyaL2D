@@ -5,6 +5,7 @@ import "@fontsource/jetbrains-mono/600.css";
 import { loadIkiModel, type IkiModel } from "@ikijs/format";
 import { inspectModel } from "./inspection/inspect";
 import { ModelSession } from "./model/model-session";
+import { callTool, listTools, type ToolContext, type ToolResult, type ToolSpec } from "./agent/tools";
 import { ExternalRuntime, importAdapter } from "./runtime/external-runtime";
 import { IkiRuntime } from "./runtime/iki-runtime";
 import { adapterUrlFor, loadSettings, RUNTIMES, saveSettings, type AppSettings, type RuntimeId } from "./runtime/registry";
@@ -441,9 +442,15 @@ declare global {
       session: () => ModelSession | undefined;
       inspect: () => ReturnType<typeof inspectModel> | undefined;
       settings: () => AppSettings;
+      /** Agent tool layer (docs/agent/first-capabilities.md), callable without any LLM. */
+      tools: { list: () => ToolSpec[]; call: (name: string, args?: unknown) => Promise<ToolResult> };
       ready: Promise<void>;
     };
   }
+}
+
+function toolContext(): ToolContext {
+  return { runtime, session, modelOpen: hasModel() };
 }
 
 const ready = (async () => {
@@ -458,5 +465,14 @@ window.nyal2d = {
   session: () => session,
   inspect: () => (session ? inspectModel(session.current) : undefined),
   settings: () => settings,
+  tools: {
+    list: () => listTools(toolContext()),
+    call: async (name, args) => {
+      const result = await callTool(name, args, toolContext());
+      // Model edits already redraw through the session; runtime state (motion mode) does not.
+      if (result.ok && name === "set_motion_mode") syncChrome();
+      return result;
+    },
+  },
   ready,
 };

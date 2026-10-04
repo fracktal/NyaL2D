@@ -1,6 +1,6 @@
 # 첫 에이전트 기능 제안
 
-스펙 21절 Task 5의 결과다. **아직 구현하지 않았다.** 아래 도구는 모두 `docs/iki/`에서 확인되었거나(Confirmed) 이 저장소에서 실제로 돌려 본(Observed) 런타임 동작 위에만 올린다.
+스펙 21절 Task 5의 결과다. 도구 계층은 Phase 3의 1단계로 구현되었다(`app/src/agent/tools.ts`, LLM 없음, 아래 "구현 상태"). 아래 도구는 모두 `docs/iki/`에서 확인되었거나(Confirmed) 이 저장소에서 실제로 돌려 본(Observed) 런타임 동작 위에만 올린다.
 
 ## 원칙
 
@@ -15,6 +15,7 @@
 
 | 도구 | 감싸는 것 | 반환 | 근거 |
 |---|---|---|---|
+| `list_capabilities` | 런타임 `capabilities` + 지금 쓸 수 있는 도구 | 런타임 종류, 모델 상태, 도구 이름 목록 | Observed (`app/test/tools.test.ts`) |
 | `inspect_model` | `inspectModel(session.current)` | 파라미터(범위, usedBy, drivenBy), 파트, 디포머, 물리, 체인, 텍스처 요약 JSON | Observed (`app/test/model.test.ts`) |
 | `get_parameters` | `IkiRuntime.snapshotParameters()` + `drivenParameterIds` | 현재 값, 어느 드라이버가 쓰는지 | Confirmed |
 | `capture_frame` | `IkiRuntime.captureFrame()` | PNG (선택적으로 특정 파라미터 포즈를 먼저 적용) | Observed (`rendering.md`) |
@@ -28,7 +29,7 @@
 | `set_parameter` | `IkiRuntime.setParameter` | 포즈만 바꿈, 모델 변경 아님 | Confirmed |
 | `set_motion_mode` | `IkiRuntime.setMotionMode` (`idle`/`physics`/`off`) | 런타임 상태 | Observed |
 | `edit_physics_rig` | `SetPhysicsRig` | 변경으로 기록 | Observed (브라우저 + 단위 테스트) |
-| `edit_bindings` | `SetPartBindings`, `SetDeformerBindings` | 변경으로 기록 | Observed (단위 테스트) |
+| `edit_binding` | `SetPartBindings`, `SetDeformerBindings` (바인딩 하나를 parameter+channel로 지정해 수정·추가·삭제) | 변경으로 기록 | Observed (단위 테스트) |
 | `undo` / `revert_all` | `ModelSession.undo` / `revertAll` | — | Observed |
 
 ### 의도적으로 빼는 것
@@ -46,7 +47,7 @@
 
 1. **관찰** `inspect_model` → `ParamBreath`의 usedBy가 `deformer:bodyDeformer`, `deformer:headDeformer`. 바인딩은 `bodyDeformer: ParamBreath → translateY [0, 4.6]`, `headDeformer: … [0, 2.95]`. drivenBy에는 없고 `get_parameters`로 IdleMotion이 쓴다는 것을 확인 (3.5초 주기, 0..1).
 2. **판단** 호흡 주기는 Idle 상수라 바꿀 수 없다. 바꿀 수 있는 것은 진폭(바인딩의 `to`)이다.
-3. **행동** `edit_bindings`로 두 디포머의 `ParamBreath` 바인딩 `to`를 줄인다. 두 변경이 각각 기록된다.
+3. **행동** `edit_binding`으로 두 디포머의 `ParamBreath` 바인딩 `to`를 줄인다. 두 변경이 각각 기록된다.
 4. **평가** `capture_frame`을 `ParamBreath=0`과 `1`에서 찍어 몸통 영역의 이동량을 변경 전후로 비교하고, 사용자에게 Idle 모드 미리보기를 보여 준다.
 5. **보존** 변경 목록에 `Set deformer bindings` 2건, 출처 `agent`. 마음에 안 들면 undo.
 
@@ -61,9 +62,19 @@
 
 이 반복이 스펙 13절의 최적화기 자리다. LLM은 "자연스럽게"를 목표 지표로 옮기고, 수치 탐색은 나중에 별도 최적화기가 `simulate_physics`를 직접 돌리게 하면 된다. 헤드리스 시뮬레이션이 결정적이고 빠르기 때문에 가능하다.
 
+## 구현 상태
+
+1단계(도구 계층)는 구현되었다.
+
+- `app/src/agent/tools.ts`: 위 12개 도구. 각 도구는 JSON Schema 입력(`app/src/agent/schema.ts`), `available(ctx)`(런타임·모델·capabilities에 따라), `run()`을 가진다. `listTools(ctx)`는 지금 쓸 수 있는 도구만 순수 JSON으로 돌려주고, `callTool(name, args, ctx)`는 예외를 던지지 않고 `{ ok, data | error, image? }`를 돌려준다. 잘못된 인자, 없는 리그, 거부된 편집도 모두 오류 결과다.
+- 모델 편집은 `ModelSession.apply(cmd, "agent")`로 들어가 타임라인에 출처 `agent`로 표시되고 undo된다.
+- 외부(블랙박스) 런타임에서는 `list_capabilities`, `get_parameters`, `capture_frame`, `set_parameter`, `set_motion_mode`만 나온다.
+- 브라우저 콘솔에서 `await nyal2d.tools.list()`, `await nyal2d.tools.call("simulate_physics", { input: "ParamAngleX", to: 30 })`처럼 바로 쓸 수 있다.
+- 검증: `app/test/tools.test.ts`(Observed: hairSway 계단 응답 최대 약 7.0, 약 600ms. damping 3→8이면 오버슈트 감소. 예시 1의 바인딩 편집). 브라우저 스모크(`app/scripts/smoke.mjs`)가 실제 페이지에서 도구를 호출해 타임라인 출처와 모션 버튼 반영을 확인한다.
+
 ## 다음 단계 제안 (Phase 3)
 
-1. 위 도구를 `app/src/agent/tools/`에 순수 함수로 구현하고 단위 테스트 (LLM 없이).
+1. ~~위 도구를 순수 함수로 구현하고 단위 테스트 (LLM 없이).~~ 완료.
 2. 에이전트 루프(요청 → 분석 → 계획 → 변경 → 평가)를 상태 머신으로 만들고 UI 하단 패널에 단계를 표시.
 3. LLM 어댑터 하나를 붙여 "파라미터 보여줘", "이 모델 설명해줘", "이 파라미터 바꿔줘" 수준부터 시작.
 

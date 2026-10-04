@@ -150,6 +150,33 @@ try {
     runtimeStiffness: window.nyal2d.runtime.loadedModel.physics.find((r) => r.id === "hairSway").stiffness,
   }));
 
+  // Agent tool layer, driven from the page like a future agent loop would.
+  results.tools = await page.evaluate(async () => {
+    const t = window.nyal2d.tools;
+    const names = t.list().map((x) => x.name);
+    const caps = await t.call("list_capabilities");
+    const sim = await t.call("simulate_physics", { input: "ParamAngleX", to: 30, record: ["ParamHairSwayX"] });
+    const edit = await t.call("edit_binding", { target: "deformer", id: "bodyDeformer", parameter: "ParamBreath", channel: "translateY", to: 2.3 });
+    const mode = await t.call("set_motion_mode", { mode: "physics" });
+    const shot = await t.call("capture_frame", { pose: { ParamAngleX: 20 } });
+    const changes = await t.call("list_changes");
+    const undo = await t.call("undo");
+    const bad = await t.call("set_parameter", { id: "ParamAngleX" });
+    return {
+      names,
+      runtime: caps.data.runtime.kind,
+      peak: sim.data.outputs.ParamHairSwayX.peak,
+      edited: edit.ok && edit.data.after.to,
+      timelineSource: document.querySelector("#changes .node.latest .src")?.textContent,
+      modeButton: document.querySelector('#motion-mode button[aria-pressed="true"]')?.dataset.mode,
+      captureBytes: shot.ok ? shot.image.size : 0,
+      changes: changes.data.applied.map((c) => `${c.label}·${c.source}`),
+      undo: undo.ok,
+      badArgs: bad.ok ? null : bad.error,
+    };
+  });
+  await page.evaluate(() => window.nyal2d.tools.call("set_motion_mode", { mode: "idle" }));
+
   // Inspector tabs and the error state, for visual review.
   await page.emulateMedia({ colorScheme: "dark" });
   await page.click('.tab:has-text("디포머")');

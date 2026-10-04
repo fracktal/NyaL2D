@@ -4,6 +4,7 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 import { loadIkiModel, type IkiModel } from "@ikijs/format";
 import { importLayeredArt, isLayeredArt } from "./import/layer-import";
+import { isLibraryFile, libraryFileUrl, loadLibraryFile, saveToLibrary } from "./model/library";
 import { inspectModel } from "./inspection/inspect";
 import { ModelSession } from "./model/model-session";
 import { ProxyLlmClient } from "./agent/llm";
@@ -20,6 +21,7 @@ import { renderChanges } from "./ui/changes";
 import { icon } from "./ui/icons";
 import { renderInspector, renderRuntimeInspector } from "./ui/inspector";
 import { renderParameters, type ParameterPanel } from "./ui/parameters";
+import { openLibrary } from "./ui/library";
 import { openSettings } from "./ui/settings";
 import { toast } from "./ui/toast";
 
@@ -208,8 +210,8 @@ async function applySettings(next: AppSettings): Promise<void> {
 
 // --- Model lifecycle -----------------------------------------------------------
 
-async function openIkiText(text: string, label: string): Promise<void> {
-  if (!iki) return;
+async function openIkiText(text: string, label: string): Promise<boolean> {
+  if (!iki) return false;
   let model: IkiModel;
   try {
     model = loadIkiModel(text);
@@ -217,7 +219,7 @@ async function openIkiText(text: string, label: string): Promise<void> {
     // IkiFormatError carries a path-qualified message, e.g. "parts[3].mesh…".
     setOverlay({ kind: "error", title: `${label}을(를) 열 수 없습니다`, detail: (err as Error).message });
     setStatus("열기 실패");
-    return;
+    return false;
   }
   unsubscribeSession?.();
   resetAgent();
@@ -227,6 +229,7 @@ async function openIkiText(text: string, label: string): Promise<void> {
   await refresh(true);
   setOverlay({ kind: "none" });
   setStatus(label);
+  return true;
 }
 
 async function openExternal(files: File[], label: string): Promise<void> {
@@ -247,7 +250,7 @@ async function openExternal(files: File[], label: string): Promise<void> {
 }
 
 /** PSD or layer PNGs → auto-rigged `.iki`, opened like any other model. */
-async function importArt(files: File[]): Promise<void> {
+async function importArt(files: File[]): Promise<{ name: string; text: string } | undefined> {
   const label = files.length === 1 ? files[0].name : `레이어 ${files.length}장`;
   setOverlay({ kind: "loading", label: `${label} 자동 리깅 중` });
   let result: Awaited<ReturnType<typeof importLayeredArt>>;
@@ -256,20 +259,74 @@ async function importArt(files: File[]): Promise<void> {
   } catch (err) {
     setOverlay({ kind: "error", title: `${label}을(를) 모델로 만들 수 없습니다`, detail: (err as Error).message });
     setStatus("가져오기 실패");
-    return;
+    return undefined;
   }
-  await openIkiText(result.text, `${result.name}.iki`);
+  if (!(await openIkiText(result.text, `${result.name}.iki`))) return undefined;
   const { report } = result;
   console.info("[nyal2d] layer import", report);
   toast(`${result.name}: 부위 ${report.roles.length}개로 리깅 (${report.roles.map((r) => r.role).join(", ")})${report.dropped.length ? ` · 제외 ${report.dropped.length}개` : ""}`);
+  return result;
 }
 
-async function openFiles(files: File[]): Promise<void> {
+/** The library file the open model came from, if any (marked in the model picker). */
+let currentFile: string | undefined;
+
+/**
+ * Open picked or dropped files. With `save`, a model or layered art that
+ * opened is also kept in the character library: a single .iki/.psd/image as
+ * it is, a set of layer images as the rigged .iki made from them.
+ */
+async function openFiles(files: File[], opts: { save?: boolean; libraryFile?: string } = {}): Promise<void> {
   if (!files.length) return;
-  if (iki && isLayeredArt(files)) await importArt(files);
-  else if (iki) await openIkiText(await files[0].text(), files[0].name);
-  else if (external?.connected) await openExternal(files, files[0].name);
-  else if (external) setOverlay({ kind: "unconnected", name: external.label });
+  if (!iki) {
+    if (external?.connected) await openExternal(files, files[0].name);
+    else if (external) setOverlay({ kind: "unconnected", name: external.label });
+    return;
+  }
+  let keep: { name: string; data: Blob };
+  if (isLayeredArt(files)) {
+    const made = await importArt(files);
+    if (!made) return;
+    keep = files.length === 1 ? { name: files[0].name, data: files[0] } : { name: `${made.name}-${Date.now().toString(36)}.iki`, data: new Blob([made.text], { type: "application/json" }) };
+  } else {
+    if (!(await openIkiText(await files[0].text(), files[0].name))) return;
+    keep = { name: files[0].name.replace(/\.json$/i, ".iki"), data: files[0] };
+  }
+  currentFile = opts.libraryFile ?? (opts.save ? keep.name : undefined);
+  if (opts.libraryFile || opts.save) showInAddressBar(libraryFileUrl(opts.libraryFile ?? keep.name));
+  if (opts.save && isLibraryFile(keep.name)) {
+    try {
+      await saveToLibrary(keep.name, keep.data);
+      toast(`라이브러리에 저장: ${keep.name}`);
+    } catch (err) {
+      toast(`라이브러리에 저장하지 못했습니다: ${(err as Error).message}`, "error");
+    }
+  }
+}
+
+/** Keep `?open=` in the address bar pointing at the open model, so a reload reopens it. */
+function showInAddressBar(open: string | undefined): void {
+  const url = new URL(location.href);
+  if (open) url.searchParams.set("open", open);
+  else url.searchParams.delete("open");
+  history.replaceState(null, "", url);
+}
+
+async function showLibrary(): Promise<void> {
+  const choice = await openLibrary(currentFile ?? (session?.current && !new URL(location.href).searchParams.get("open") ? "hero.iki" : undefined));
+  if (!choice) return;
+  if (choice.kind === "sample") {
+    currentFile = undefined;
+    showInAddressBar(undefined);
+    return void (await loadSample());
+  }
+  if (choice.kind === "import") return void (await openFiles(choice.files, { save: true }));
+  setOverlay({ kind: "loading", label: `${choice.file} 불러오는 중` });
+  try {
+    await openFiles([await loadLibraryFile(choice.file)], { libraryFile: choice.file });
+  } catch (err) {
+    setOverlay({ kind: "error", title: `${choice.file}을(를) 불러오지 못했습니다`, detail: (err as Error).message });
+  }
 }
 
 /** Push the session's current model into Iki and redraw the panels. */
@@ -365,14 +422,14 @@ async function loadSample(): Promise<void> {
 
 // --- Controls ------------------------------------------------------------------
 
-$("load-sample").addEventListener("click", () => void loadSample());
+$("load-sample").addEventListener("click", () => void showLibrary());
 $("settings").addEventListener("click", () => void showSettings());
 
 $<HTMLInputElement>("file-input").addEventListener("change", async (e) => {
   const input = e.target as HTMLInputElement;
   const files = [...(input.files ?? [])];
   input.value = "";
-  await openFiles(files);
+  await openFiles(files, { save: true });
 });
 
 $("motion-mode").addEventListener("click", (e) => {
@@ -457,7 +514,7 @@ stage.addEventListener("drop", async (e) => {
   dragDepth = 0;
   const files = [...(e.dataTransfer?.files ?? [])];
   if (!files.length) return setOverlay(overlayBeforeDrop);
-  await openFiles(files);
+  await openFiles(files, { save: true });
 });
 
 function download(blob: Blob, name: string): void {
@@ -551,13 +608,15 @@ function toolContext(): ToolContext {
 async function openFromQuery(): Promise<boolean> {
   const src = new URLSearchParams(location.search).get("open");
   if (!src) return false;
-  const name = decodeURIComponent(src.split(/[/?#]/).filter(Boolean).pop() ?? src);
+  // A library link (./llm/library/file?name=…) names its file in the query.
+  const libraryName = new URL(src, location.href).searchParams.get("name") ?? undefined;
+  const name = libraryName ?? decodeURIComponent(src.split(/[/?#]/).filter(Boolean).pop() ?? src);
   setOverlay({ kind: "loading", label: `${name} 불러오는 중` });
   try {
     const res = await fetch(src);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
-    await openFiles([new File([blob], name, { type: blob.type })]);
+    await openFiles([new File([blob], name, { type: blob.type })], { libraryFile: src.includes("llm/library/file") ? libraryName : undefined });
   } catch (err) {
     setOverlay({ kind: "error", title: `${name}을(를) 불러오지 못했습니다`, detail: (err as Error).message });
   }

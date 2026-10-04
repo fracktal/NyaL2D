@@ -25,6 +25,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
 import type { RunEvent, RunRequest, TurnRequest } from "../src/agent/protocol.ts";
+import { createLibrary, LibraryError, type Library } from "./library.ts";
 import { isLocalOrigin } from "./origin.ts";
 import { createAnthropicProvider } from "./providers/anthropic.ts";
 import { createClaudeCodeProvider } from "./providers/claude-code.ts";
@@ -33,6 +34,8 @@ import { ProviderError, type Provider } from "./providers/types.ts";
 import { createToolHub, type ToolHub } from "./tool-hub.ts";
 
 const MAX_BODY = 25 * 1024 * 1024;
+/** Largest file the character library takes (a layered PSD can be big). */
+const MAX_LIBRARY_FILE = 512 * 1024 * 1024;
 
 /** Where a running app server records its address, so server/mcp-bridge.ts can find it. */
 export const DISCOVERY_FILE = join(tmpdir(), "nyal2d", "server.json");
@@ -68,8 +71,9 @@ export interface AppServer {
   close(): Promise<void>;
 }
 
-export function createAppServer(opts: { env?: NodeJS.ProcessEnv; log?: (msg: string) => void; discovery?: boolean } = {}): AppServer {
+export function createAppServer(opts: { env?: NodeJS.ProcessEnv; log?: (msg: string) => void; discovery?: boolean; library?: Library } = {}): AppServer {
   const env = opts.env ?? process.env;
+  const library = opts.library ?? createLibrary(env.NYAL2D_LIBRARY_DIR || undefined);
   const log = opts.log ?? ((m: string) => console.error(`[nyal2d] ${m}`));
   const hub = createToolHub({ log });
   let url: string | undefined;
@@ -132,6 +136,8 @@ export function createAppServer(opts: { env?: NodeJS.ProcessEnv; log?: (msg: str
     try {
       if (req.method === "GET" && path === "/llm/health") return send(res, 200, await provider.health());
       if (path === "/llm/mcp") return await serveMcp(req, res);
+      if (path === "/llm/library" && req.method === "GET") return send(res, 200, library.list());
+      if (path === "/llm/library/file") return await serveLibraryFile(req, res);
       if (req.method === "POST" && path === "/llm/run") {
         if (!provider.run) return send(res, 400, { error: "이 제공자는 /llm/turn을 씁니다" });
         const body = await readJson(req);
@@ -150,10 +156,26 @@ export function createAppServer(opts: { env?: NodeJS.ProcessEnv; log?: (msg: str
       }
       send(res, 404, { error: "없는 경로" });
     } catch (err) {
+      if (err instanceof LibraryError) return send(res, err.status, { error: err.message });
       const e = err instanceof ProviderError ? err : new ProviderError((err as Error).message, 500);
       if (!res.headersSent) send(res, e.status, { error: e.message, retryable: e.retryable });
       else res.end();
     }
+  }
+
+  async function serveLibraryFile(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const name = new URL(req.url ?? "/", "http://localhost").searchParams.get("name") ?? "";
+    if (req.method === "GET") {
+      const data = library.read(name);
+      res.writeHead(200, { "content-type": "application/octet-stream", "content-length": data.length, "cache-control": "no-store" });
+      return void res.end(data);
+    }
+    if (req.method === "PUT") return send(res, 200, library.save(name, await readBody(req, MAX_LIBRARY_FILE)));
+    if (req.method === "DELETE") {
+      library.remove(name);
+      return send(res, 200, { ok: true });
+    }
+    send(res, 405, { error: "GET, PUT, DELETE만 됩니다" });
   }
 
   async function serveMcp(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -189,16 +211,21 @@ function abortOnClose(res: ServerResponse): AbortController {
   return abort;
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readBody(req: IncomingMessage, max: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > MAX_BODY) throw new ProviderError("요청이 너무 큽니다", 413);
+    if (size > max) throw new ProviderError("요청이 너무 큽니다", 413);
     chunks.push(chunk as Buffer);
   }
+  return Buffer.concat(chunks);
+}
+
+async function readJson(req: IncomingMessage): Promise<unknown> {
+  const body = await readBody(req, MAX_BODY);
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(body.toString("utf8"));
   } catch {
     throw new ProviderError("JSON 본문이 아닙니다", 400);
   }

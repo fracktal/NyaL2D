@@ -67,12 +67,13 @@ export function createClaudeCodeProvider(opts: { hub: ToolHub; mcpUrl: () => str
  * Where the Claude Code CLI is, when it is not simply on PATH: the native
  * installer puts it in ~/.local/bin, which shells started without a login
  * profile (an editor, a service, `wsl -e`) often do not have on PATH; npm
- * under nvm puts it in a per-version bin folder. Windows folders that WSL
+ * under nvm puts it in a per-version bin folder, and asdf exposes it through
+ * its shims folder, which only an interactive shell's ~/.bashrc adds. Windows folders that WSL
  * appends to PATH (/mnt/...) are skipped: a Windows install cannot run here.
  */
 export function findClaude(env: NodeJS.ProcessEnv = process.env, home = homedir()): string | undefined {
   const dirs = (env.PATH ?? "").split(delimiter).filter((d) => d && !d.startsWith("/mnt/"));
-  dirs.push(join(home, ".local", "bin"), join(home, ".claude", "local"), join(home, ".npm-global", "bin"), "/usr/local/bin");
+  dirs.push(join(env.ASDF_DATA_DIR ?? join(home, ".asdf"), "shims"), join(home, ".local", "bin"), join(home, ".claude", "local"), join(home, ".npm-global", "bin"), "/usr/local/bin");
   try {
     const nvm = join(env.NVM_DIR ?? join(home, ".nvm"), "versions", "node");
     for (const v of readdirSync(nvm).sort().reverse()) dirs.push(join(nvm, v, "bin"));

@@ -77,3 +77,18 @@ describe("finding the Claude Code CLI", () => {
     expect(findClaude({ PATH: "" }, home)).toBe(join(bin, "claude"));
   });
 });
+
+describe("finding the Claude Code CLI through asdf", () => {
+  it("uses the asdf shim when PATH lacks it", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, chmodSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { findClaude } = await import("../server/providers/claude-code");
+    const home = mkdtempSync(join(tmpdir(), "nyal2d-home-"));
+    const shims = join(home, ".asdf", "shims");
+    mkdirSync(shims, { recursive: true });
+    writeFileSync(join(shims, "claude"), "#!/bin/sh\n");
+    chmodSync(join(shims, "claude"), 0o755);
+    expect(findClaude({ PATH: "/usr/bin" }, home)).toBe(join(shims, "claude"));
+  });
+});

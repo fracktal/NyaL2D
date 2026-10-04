@@ -2,6 +2,7 @@ import { SetPhysicsRig } from "@ikijs/editor";
 import type { IkiPhysics } from "@ikijs/format";
 import type { DeformerSummary, ModelSnapshot } from "../inspection/inspect";
 import type { ModelSession } from "../model/model-session";
+import type { RuntimeCapabilities } from "../runtime/types";
 import { el, fmt } from "./dom";
 import { iconEl } from "./icons";
 import { responseChart, stepResponse } from "./physics-chart";
@@ -252,3 +253,51 @@ export function renderInspector(tabsRoot: HTMLElement, root: HTMLElement, snap: 
   root.scrollTop = scroll;
 }
 
+
+/** Inspector for a runtime that only exposes parameters (external adapters). */
+export function renderRuntimeInspector(
+  tabsRoot: HTMLElement,
+  root: HTMLElement,
+  info: { runtime: string; adapter?: string; model?: string; parameters: number; capabilities: RuntimeCapabilities },
+): void {
+  tabsRoot.replaceChildren(el("button", { class: "tab", role: "tab", type: "button", "aria-selected": "true" }, "개요"));
+  const cap = (ok: boolean, label: string) => {
+    const li = el("li", { class: ok ? "yes" : "no" }, iconEl(ok ? "check" : "close"), label);
+    return li;
+  };
+  const c = info.capabilities;
+  root.replaceChildren(
+    el(
+      "div",
+      { class: "section" },
+      el("div", { class: "section-title" }, "Runtime"),
+      props([
+        ["runtime", info.runtime],
+        ["adapter", info.adapter ?? "—"],
+        ["model", info.model ?? "열린 모델 없음"],
+        ["parameters", String(info.parameters)],
+      ]),
+    ),
+    el(
+      "div",
+      { class: "section" },
+      el("div", { class: "section-title" }, "Capabilities"),
+      el(
+        "ul",
+        { class: "cap-list" },
+        cap(true, "파라미터 읽기·쓰기"),
+        cap(true, "렌더링과 프레임 캡처"),
+        cap(c.motionModes.some((m) => m !== "off"), `모션 (${c.motionModes.filter((m) => m !== "off").join(", ") || "없음"})`),
+        cap(c.inspection === "full", "파트·디포머·물리 구조 조회"),
+        cap(c.editing, "모델 편집과 되돌리기"),
+        cap(c.physicsSimulation, "헤드리스 물리 시뮬레이션"),
+      ),
+    ),
+    el(
+      "div",
+      { class: "notice" },
+      el("b", {}, "블랙박스 런타임"),
+      "이 런타임은 어댑터 규약의 함수만 노출합니다. 모델 구조 조회와 편집은 내장 Iki 런타임에서만 가능합니다.",
+    ),
+  );
+}

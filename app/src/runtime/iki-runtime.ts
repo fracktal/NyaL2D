@@ -1,16 +1,10 @@
 import { HairChainMotion, IkiMotion, IkiPlayer, PhysicsMotion, type IkiLoadResult } from "@ikijs/engine";
 import { parseIkiModel, type IkiModel, type IkiParameter } from "@ikijs/format";
+import { captureCanvasNextFrame, type MotionMode, type PuppetRuntime, type RuntimeCapabilities } from "./types";
+
+export type { MotionMode } from "./types";
 
 type ParamListener = (id: string, value: number) => void;
-
-/**
- * - `idle`: Iki's bundled idle (blink, breath, gaze, head sway) + physics.
- * - `physics`: physics rigs and chains only. Idle also writes ParamAngleX/Y/Z,
- *   so this is the mode for driving the head yourself and watching the
- *   secondary motion respond.
- * - `off`: nothing runs; parameters stay where they were set.
- */
-export type MotionMode = "idle" | "physics" | "off";
 
 interface MotionDriver {
   readonly drivenParameterIds: readonly string[];
@@ -25,7 +19,24 @@ interface MotionDriver {
  * capture a rendered frame. Nothing outside this module imports
  * `@ikijs/engine`.
  */
-export class IkiRuntime {
+export class IkiRuntime implements PuppetRuntime {
+  readonly kind = "iki";
+  readonly label = "Iki";
+  readonly accept = ".iki,.json,application/json";
+  /**
+   * Motion modes:
+   * - `idle`: Iki's bundled idle (blink, breath, gaze, head sway) + physics.
+   * - `physics`: physics rigs and chains only. Idle also writes ParamAngleX/Y/Z,
+   *   so this is the mode for driving the head yourself and watching the
+   *   secondary motion respond.
+   * - `off`: nothing runs; parameters stay where they were set.
+   */
+  readonly capabilities: RuntimeCapabilities = {
+    editing: true,
+    physicsSimulation: true,
+    inspection: "full",
+    motionModes: ["idle", "physics", "off"],
+  };
   private readonly player: IkiPlayer;
   private model?: IkiModel;
   private motion?: MotionDriver;
@@ -107,24 +118,12 @@ export class IkiRuntime {
   }
 
   /**
-   * Capture the next rendered frame as a PNG blob.
-   *
-   * The player renders inside its own requestAnimationFrame loop and its
-   * WebGL context does not set `preserveDrawingBuffer`, so the canvas must be
-   * read in a later rAF callback of the same frame, before the browser
-   * composites and clears it. See docs/iki/rendering.md for the observation
-   * that backs this.
+   * Capture the next rendered frame. The player renders in its own rAF loop
+   * without `preserveDrawingBuffer`, so the canvas is read in a later rAF
+   * callback of the same frame (docs/iki/rendering.md).
    */
   captureFrame(type = "image/png"): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-      requestAnimationFrame(() => {
-        // toDataURL is synchronous, so it reads the buffer the player just drew.
-        const url = this.canvas.toDataURL(type);
-        fetch(url)
-          .then((r) => r.blob())
-          .then(resolve, reject);
-      });
-    });
+    return captureCanvasNextFrame(this.canvas, type);
   }
 
   destroy(): void {

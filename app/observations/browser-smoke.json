@@ -23,8 +23,8 @@
     "width": 780,
     "height": 800,
     "opaque": 301297,
-    "hash": 1345950570,
-    "bytes": 547198
+    "hash": 3677529688,
+    "bytes": 547410
   },
   "captureOutsideRaf": {
     "opaque": 0
@@ -32,58 +32,58 @@
   "restFrame": {
     "width": 780,
     "height": 800,
-    "opaque": 301053,
-    "hash": 4012948370,
-    "bytes": 547583
+    "opaque": 301087,
+    "hash": 2531597979,
+    "bytes": 547946
   },
   "angleX30Frame": {
     "width": 780,
     "height": 800,
-    "opaque": 301005,
-    "hash": 3980215137,
-    "bytes": 546874
+    "opaque": 301016,
+    "hash": 1667496892,
+    "bytes": 547303
   },
   "idleFrameHashesDistinct": 4,
   "hairSwayStepResponse": [
     [
-      8,
-      0.042
+      40,
+      0.24
     ],
     [
-      209,
-      2.764
+      261,
+      3.718
     ],
     [
-      394,
-      5.889
+      487,
+      6.804
     ],
     [
-      595,
-      7.01
+      718,
+      6.434
     ],
     [
-      793,
-      5.948
+      964,
+      4.671
     ],
     [
-      999,
-      4.587
+      1188,
+      4.194
     ],
     [
-      1213,
-      4.21
+      1376,
+      4.599
     ],
     [
-      1489,
-      4.953
+      1562,
+      5.12
     ],
     [
-      1712,
-      5.32
+      1776,
+      5.327
     ],
     [
-      1953,
-      5.19
+      1972,
+      5.148
     ]
   ],
   "afterEdit": {
@@ -100,44 +100,40 @@
   },
   "hairSwayStepResponseStiff": [
     [
-      25,
-      0.167
+      28,
+      0.94
     ],
     [
-      275,
-      8.229
+      237,
+      8.086
     ],
     [
-      477,
-      3.737
+      442,
+      4.104
     ],
     [
-      699,
+      683,
       4.665
     ],
     [
-      890,
-      6.246
+      909,
+      5.83
     ],
     [
-      1111,
-      4.149
+      1164,
+      4.256
     ],
     [
-      1339,
-      5.302
+      1396,
+      5.558
     ],
     [
-      1525,
-      5.207
+      1622,
+      4.755
     ],
     [
-      1745,
-      4.683
-    ],
-    [
-      1939,
-      5.185
+      1847,
+      5.021
     ]
   ],
   "afterUndo": {
@@ -145,5 +141,49 @@
     "runtimeStiffness": 30
   },
   "errorOverlay": "canvas.width must be > 0",
+  "adapterStatus": "Example adapter v1.0.0 · 규약 v1 확인됨",
+  "external": {
+    "kind": "ayagami",
+    "label": "Example adapter",
+    "capabilities": {
+      "editing": false,
+      "physicsSimulation": false,
+      "inspection": "parameters",
+      "motionModes": [
+        "idle",
+        "off"
+      ]
+    },
+    "parameters": [
+      "ParamAngleX",
+      "ParamAngleY",
+      "ParamEyeLOpen",
+      "ParamEyeROpen",
+      "ParamMouthOpenY",
+      "ParamBreath"
+    ],
+    "angleX": 25,
+    "clampedTo": 30,
+    "captureBytes": 29522,
+    "exportDisabled": true,
+    "motionButtons": [
+      [
+        "idle",
+        false
+      ],
+      [
+        "physics",
+        true
+      ],
+      [
+        "off",
+        false
+      ]
+    ]
+  },
+  "backToIki": {
+    "kind": "iki",
+    "parts": 15
+  },
   "console": []
 }

@@ -5,11 +5,15 @@ import "@fontsource/jetbrains-mono/600.css";
 import { loadIkiModel, type IkiModel } from "@ikijs/format";
 import { inspectModel } from "./inspection/inspect";
 import { ModelSession } from "./model/model-session";
-import { IkiRuntime, type MotionMode } from "./runtime/iki-runtime";
+import { ExternalRuntime, importAdapter } from "./runtime/external-runtime";
+import { IkiRuntime } from "./runtime/iki-runtime";
+import { loadSettings, RUNTIMES, saveSettings, type AppSettings } from "./runtime/registry";
+import type { MotionMode, PuppetRuntime } from "./runtime/types";
 import { renderChanges } from "./ui/changes";
 import { icon } from "./ui/icons";
-import { renderInspector } from "./ui/inspector";
+import { renderInspector, renderRuntimeInspector } from "./ui/inspector";
 import { renderParameters, type ParameterPanel } from "./ui/parameters";
+import { openSettings } from "./ui/settings";
 import { toast } from "./ui/toast";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -20,20 +24,39 @@ for (const node of document.querySelectorAll<HTMLElement>("[data-icon]")) {
 }
 $("param-search-wrap").insertAdjacentHTML("afterbegin", icon("search"));
 
-const canvas = $<HTMLCanvasElement>("canvas");
-const runtime = new IkiRuntime(canvas);
+const stage = $("stage");
+let settings: AppSettings = loadSettings();
+
+/**
+ * Exactly one runtime is active. Iki gets the full editing stack
+ * (ModelSession, inspector, timeline); an external adapter runtime is a black
+ * box that only exposes parameters, rendering and capture.
+ */
+let runtime: PuppetRuntime | undefined;
+let iki: IkiRuntime | undefined;
+let external: ExternalRuntime | undefined;
+let canvas: HTMLCanvasElement;
 let session: ModelSession | undefined;
 let unsubscribeSession: (() => void) | undefined;
+let unsubscribeParams: (() => void) | undefined;
 let panel: ParameterPanel = { update() {} };
 let paramFilter = "";
-
-runtime.onParameter((id, v) => panel.update(id, v));
+let externalModelOpen = false;
 
 // --- Stage overlay & HUD -------------------------------------------------------
 
-type OverlayState = { kind: "loading"; label: string } | { kind: "empty" } | { kind: "drop" } | { kind: "error"; title: string; detail: string } | { kind: "none" };
+type OverlayState =
+  | { kind: "loading"; label: string }
+  | { kind: "empty"; hint: string }
+  | { kind: "drop" }
+  | { kind: "error"; title: string; detail: string }
+  | { kind: "none" };
 let overlayBeforeDrop: OverlayState = { kind: "none" };
 let overlayState: OverlayState = { kind: "none" };
+
+function hasModel(): boolean {
+  return iki ? !!session : externalModelOpen;
+}
 
 function setOverlay(state: OverlayState): void {
   overlayState = state;
@@ -42,45 +65,128 @@ function setOverlay(state: OverlayState): void {
   overlay.className = `stage-overlay ${state.kind === "none" ? "" : "visible"} ${state.kind}`;
   switch (state.kind) {
     case "loading":
-      card.innerHTML = `<div class="spinner" aria-hidden="true"></div><p>${state.label}</p>`;
+      card.innerHTML = `<div class="spinner" aria-hidden="true"></div><p></p>`;
+      card.querySelector("p")!.textContent = state.label;
       break;
     case "empty":
-      card.innerHTML = `${icon("upload", "big-icon")}<h3>모델을 열어 시작하세요</h3><p>.iki 파일을 여기로 끌어다 놓거나, 상단의 열기 또는 샘플을 누르세요.</p>`;
+      card.innerHTML = `${icon("upload", "big-icon")}<h3>모델을 열어 시작하세요</h3><p></p>`;
+      card.querySelector("p")!.textContent = state.hint;
       break;
     case "drop":
-      card.innerHTML = `${icon("upload", "big-icon")}<h3>놓아서 열기</h3><p>.iki 모델 파일</p>`;
+      card.innerHTML = `${icon("upload", "big-icon")}<h3>놓아서 열기</h3><p></p>`;
+      card.querySelector("p")!.textContent = runtime?.accept || "모델 파일";
       break;
-    case "error":
-      card.innerHTML = `${icon("alert", "big-icon")}<h3></h3><div class="error-detail"></div><p>다른 파일을 끌어다 놓거나 샘플을 열 수 있습니다.</p>`;
+    case "error": {
+      card.innerHTML = `${icon("alert", "big-icon")}<h3></h3><div class="error-detail"></div><p>다른 파일을 열거나 설정에서 런타임을 바꿀 수 있습니다.</p>`;
       card.querySelector("h3")!.textContent = state.title;
       card.querySelector(".error-detail")!.textContent = state.detail;
-      if (session) {
-        const back = document.createElement("button");
-        back.className = "btn";
-        back.type = "button";
-        back.textContent = `${session.current.name}(으)로 돌아가기`;
-        back.addEventListener("click", () => setOverlay({ kind: "none" }));
-        card.append(back);
-        back.focus();
-      }
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:8px";
+      if (hasModel()) actions.append(button("btn", "이전 모델로 돌아가기", () => setOverlay({ kind: "none" })));
+      actions.append(button("btn ghost", "설정 열기", () => void showSettings()));
+      card.append(actions);
+      (actions.firstElementChild as HTMLElement).focus();
       break;
+    }
     default:
       card.replaceChildren();
   }
+}
+
+function button(cls: string, text: string, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.className = cls;
+  b.type = "button";
+  b.textContent = text;
+  b.addEventListener("click", onClick);
+  return b;
 }
 
 function setStatus(text: string): void {
   $("hud-status").lastElementChild!.textContent = text;
 }
 
-new ResizeObserver(() => {
+const sizeObserver = new ResizeObserver(() => {
   const dpr = window.devicePixelRatio || 1;
   $("hud-size").textContent = `${Math.round(canvas.clientWidth * dpr)} × ${Math.round(canvas.clientHeight * dpr)} px`;
-}).observe(canvas);
+});
+
+/** A canvas keeps the first context type it was given, so each runtime gets a fresh one. */
+function mountCanvas(): HTMLCanvasElement {
+  canvas?.remove();
+  const c = document.createElement("canvas");
+  c.id = "canvas";
+  c.setAttribute("aria-label", "모델 미리보기");
+  stage.prepend(c);
+  sizeObserver.disconnect();
+  sizeObserver.observe(c);
+  return c;
+}
+
+// --- Runtime lifecycle ---------------------------------------------------------
+
+async function activateRuntime(next: AppSettings): Promise<void> {
+  unsubscribeSession?.();
+  unsubscribeParams?.();
+  runtime?.destroy();
+  runtime = iki = external = session = undefined;
+  externalModelOpen = false;
+  canvas = mountCanvas();
+
+  const desc = RUNTIMES.find((r) => r.id === next.runtime)!;
+  $("runtime-badge").textContent = desc.name;
+  try {
+    if (desc.kind === "builtin") {
+      iki = new IkiRuntime(canvas);
+      runtime = iki;
+    } else {
+      const url = next.adapterUrls[desc.id];
+      if (!url) throw new Error(`${desc.name} 어댑터 URL이 설정되지 않았습니다`);
+      setOverlay({ kind: "loading", label: `${desc.name} 어댑터 연결 중` });
+      external = await ExternalRuntime.create(desc.id, await importAdapter(url), canvas);
+      runtime = external;
+      $("runtime-badge").textContent = `${desc.name} · ${external.label}`;
+    }
+  } catch (err) {
+    syncChrome(true);
+    setOverlay({ kind: "error", title: `${desc.name} 런타임을 시작하지 못했습니다`, detail: (err as Error).message });
+    setStatus("런타임 오류");
+    return;
+  }
+  unsubscribeParams = runtime.onParameter((id, v) => panel.update(id, v));
+  $<HTMLInputElement>("file-input").accept = runtime.accept;
+  syncChrome(true);
+  setOverlay({ kind: "empty", hint: `${runtime.accept || "모델 파일"}을(를) 끌어다 놓거나 상단의 열기 또는 샘플을 누르세요.` });
+  setStatus(`${desc.name} 준비됨`);
+}
+
+async function showSettings(): Promise<void> {
+  const next = await openSettings(settings);
+  if (!next) return;
+  const changed = JSON.stringify(next) !== JSON.stringify(settings);
+  settings = next;
+  saveSettings(settings);
+  if (!changed) return;
+  await activateRuntime(settings);
+  if (runtime) {
+    toast(`런타임: ${runtime.label}`);
+    await loadSample();
+  }
+}
 
 // --- Model lifecycle -----------------------------------------------------------
 
-async function openModel(model: IkiModel, label: string): Promise<void> {
+async function openIkiText(text: string, label: string): Promise<void> {
+  if (!iki) return;
+  let model: IkiModel;
+  try {
+    model = loadIkiModel(text);
+  } catch (err) {
+    // IkiFormatError carries a path-qualified message, e.g. "parts[3].mesh…".
+    setOverlay({ kind: "error", title: `${label}을(를) 열 수 없습니다`, detail: (err as Error).message });
+    setStatus("열기 실패");
+    return;
+  }
   unsubscribeSession?.();
   session = new ModelSession(model);
   unsubscribeSession = session.onChange(() => void refresh());
@@ -90,82 +196,134 @@ async function openModel(model: IkiModel, label: string): Promise<void> {
   setStatus(label);
 }
 
-async function openText(text: string, label: string): Promise<void> {
+async function openExternal(files: File[], label: string): Promise<void> {
+  if (!external) return;
+  setOverlay({ kind: "loading", label: `${label} 불러오는 중` });
   try {
-    await openModel(loadIkiModel(text), label);
+    await external.load(files);
   } catch (err) {
-    // IkiFormatError carries a path-qualified message, e.g. "parts[3].mesh…".
     setOverlay({ kind: "error", title: `${label}을(를) 열 수 없습니다`, detail: (err as Error).message });
     setStatus("열기 실패");
+    return;
   }
+  externalModelOpen = true;
+  syncChrome(true);
+  setOverlay({ kind: "none" });
+  setStatus(external.modelName ?? label);
 }
 
-/** Push the session's current model into the runtime and redraw the panels. */
+async function openFiles(files: File[]): Promise<void> {
+  if (!files.length) return;
+  if (iki) await openIkiText(await files[0].text(), files[0].name);
+  else if (external) await openExternal(files, files[0].name);
+}
+
+/** Push the session's current model into Iki and redraw the panels. */
 async function refresh(rebuildParams = false): Promise<void> {
-  if (!session) return;
-  const result = await runtime.load(session.current);
+  if (!iki || !session) return;
+  const result = await iki.load(session.current);
   if (result.superseded) return;
   if (result.failedTextures.length) toast(`텍스처 ${result.failedTextures.join(", ")}번을 불러오지 못했습니다`, "error");
-  const snap = inspectModel(session.current);
+  syncChrome(rebuildParams);
+}
 
+/** Reflect the active runtime and model in every panel and control. */
+function syncChrome(rebuildParams = false): void {
+  const caps = runtime?.capabilities;
   const name = $("model-name");
-  name.textContent = snap.name;
-  name.classList.remove("muted");
   const badge = $("model-badge");
-  badge.hidden = false;
-  badge.textContent = session.changes.length ? `${session.changes.length}개 변경` : "원본";
-  badge.className = `badge hide-md ${session.changes.length ? "accent" : ""}`;
+  const modelName = session?.current.name ?? (externalModelOpen ? (external?.modelName ?? "모델") : undefined);
+  name.textContent = modelName ?? "모델 없음";
+  name.classList.toggle("muted", !modelName);
+  badge.hidden = !session;
+  if (session) {
+    badge.textContent = session.changes.length ? `${session.changes.length}개 변경` : "원본";
+    badge.className = `badge hide-md ${session.changes.length ? "accent" : ""}`;
+  }
 
-  $("param-count").textContent = String(snap.parameters.length);
+  // Motion modes this runtime supports.
+  for (const b of $("motion-mode").querySelectorAll<HTMLButtonElement>("button")) {
+    const mode = b.dataset.mode as MotionMode;
+    b.disabled = !caps?.motionModes.includes(mode);
+    b.setAttribute("aria-pressed", String(runtime?.motionMode === mode));
+  }
+
+  $("param-count").textContent = hasModel() ? String(runtime?.getParameters().length ?? 0) : "";
   if (rebuildParams || !$("params").childElementCount) rebuildParameters();
-  renderInspector($("inspector-tabs"), $("inspector"), snap, session);
-  renderChanges($("changes"), session);
-  $<HTMLButtonElement>("undo").disabled = !session.canUndo;
-  $<HTMLButtonElement>("redo").disabled = !session.canRedo;
-  $<HTMLButtonElement>("revert").disabled = !session.changes.length;
-  $<HTMLButtonElement>("export").disabled = false;
-  $<HTMLButtonElement>("capture").disabled = false;
+
+  if (iki && session) {
+    renderInspector($("inspector-tabs"), $("inspector"), inspectModel(session.current), session);
+  } else if (runtime) {
+    renderRuntimeInspector($("inspector-tabs"), $("inspector"), {
+      runtime: RUNTIMES.find((r) => r.id === settings.runtime)!.name,
+      adapter: external ? `${external.label}${external.adapterVersion ? ` v${external.adapterVersion}` : ""}` : "내장",
+      model: modelName,
+      parameters: hasModel() ? runtime.getParameters().length : 0,
+      capabilities: runtime.capabilities,
+    });
+  } else {
+    $("inspector-tabs").replaceChildren();
+    $("inspector").replaceChildren();
+  }
+
+  if (session) renderChanges($("changes"), session);
+  else {
+    const note = document.createElement("span");
+    note.className = "muted";
+    note.style.fontSize = "12px";
+    note.textContent = caps && !caps.editing ? "이 런타임은 모델 편집을 지원하지 않습니다" : "모델을 열면 변경 기록이 여기에 쌓입니다";
+    $("changes").replaceChildren(note);
+  }
+  $<HTMLButtonElement>("undo").disabled = !session?.canUndo;
+  $<HTMLButtonElement>("redo").disabled = !session?.canRedo;
+  $<HTMLButtonElement>("revert").disabled = !session?.changes.length;
+  $<HTMLButtonElement>("export").disabled = !session;
+  $<HTMLButtonElement>("capture").disabled = !hasModel();
+  $<HTMLButtonElement>("reset-pose").disabled = !hasModel();
 }
 
 function rebuildParameters(): void {
-  if (!session) return;
-  panel = renderParameters($("params"), runtime, inspectModel(session.current), paramFilter);
+  const physicsOut = new Set(session ? inspectModel(session.current).parameters.filter((p) => p.drivenBy.length).map((p) => p.id) : []);
+  panel = renderParameters($("params"), hasModel() ? runtime : undefined, physicsOut, paramFilter);
 }
 
 async function loadSample(): Promise<void> {
-  setOverlay({ kind: "loading", label: "샘플 모델 불러오는 중" });
-  try {
-    const res = await fetch("./models/hero.iki");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    await openText(await res.text(), "hero.iki");
-  } catch (err) {
-    setOverlay({ kind: "error", title: "샘플을 불러오지 못했습니다", detail: (err as Error).message });
+  if (iki) {
+    setOverlay({ kind: "loading", label: "샘플 모델 불러오는 중" });
+    try {
+      const res = await fetch("./models/hero.iki");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await openIkiText(await res.text(), "hero.iki");
+    } catch (err) {
+      setOverlay({ kind: "error", title: "샘플을 불러오지 못했습니다", detail: (err as Error).message });
+    }
+  } else if (external) {
+    // Contract: load([]) opens the adapter's built-in sample, if it has one.
+    await openExternal([], `${external.label} 샘플`);
   }
 }
 
 // --- Controls ------------------------------------------------------------------
 
 $("load-sample").addEventListener("click", () => void loadSample());
+$("settings").addEventListener("click", () => void showSettings());
 
 $<HTMLInputElement>("file-input").addEventListener("change", async (e) => {
   const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
+  const files = [...(input.files ?? [])];
   input.value = "";
-  if (file) await openText(await file.text(), file.name);
+  await openFiles(files);
 });
 
-const motionGroup = $("motion-mode");
-motionGroup.addEventListener("click", (e) => {
+$("motion-mode").addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-mode]");
-  if (!btn) return;
-  const mode = btn.dataset.mode as MotionMode;
-  runtime.setMotionMode(mode);
-  for (const b of motionGroup.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b === btn));
-  rebuildParameters();
+  if (!btn || btn.disabled || !runtime) return;
+  runtime.setMotionMode(btn.dataset.mode as MotionMode);
+  syncChrome(true);
 });
 
 $("reset-pose").addEventListener("click", () => {
-  runtime.resetPose();
+  runtime?.resetPose();
   toast("포즈를 기본값으로 되돌렸습니다");
 });
 
@@ -175,8 +333,9 @@ $<HTMLInputElement>("param-search").addEventListener("input", (e) => {
 });
 
 $("capture").addEventListener("click", async () => {
+  if (!runtime) return;
   const blob = await runtime.captureFrame();
-  download(blob, `${session?.current.name ?? "frame"}-${Date.now()}.png`);
+  download(blob, `${session?.current.name ?? external?.modelName ?? "frame"}-${Date.now()}.png`);
   toast(`프레임 저장 · ${canvas.width}×${canvas.height}`);
 });
 
@@ -200,7 +359,7 @@ $("revert").addEventListener("click", () => {
 
 window.addEventListener("keydown", (e) => {
   const target = e.target as HTMLElement;
-  if (target.matches("input[type=text], input[type=search], input:not([type])")) return;
+  if (target.matches("input[type=text], input[type=search], input[type=url], input:not([type])") || target.closest("dialog")) return;
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === "z") {
     e.preventDefault();
@@ -209,11 +368,13 @@ window.addEventListener("keydown", (e) => {
   } else if (mod && e.key.toLowerCase() === "y") {
     e.preventDefault();
     session?.redo();
+  } else if (mod && e.key === ",") {
+    e.preventDefault();
+    void showSettings();
   }
 });
 
 // Drag and drop onto the stage.
-const stage = $("stage");
 let dragDepth = 0;
 stage.addEventListener("dragenter", (e) => {
   e.preventDefault();
@@ -229,9 +390,9 @@ stage.addEventListener("dragleave", () => {
 stage.addEventListener("drop", async (e) => {
   e.preventDefault();
   dragDepth = 0;
-  const file = e.dataTransfer?.files[0];
-  if (!file) return setOverlay(overlayBeforeDrop);
-  await openText(await file.text(), file.name);
+  const files = [...(e.dataTransfer?.files ?? [])];
+  if (!files.length) return setOverlay(overlayBeforeDrop);
+  await openFiles(files);
 });
 
 function download(blob: Blob, name: string): void {
@@ -242,24 +403,30 @@ function download(blob: Blob, name: string): void {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-// Initial state: nothing loaded until the sample arrives.
-for (const id of ["undo", "redo", "revert", "export", "capture"]) $<HTMLButtonElement>(id).disabled = true;
-rebuildParameters();
-
 // Programmatic handle for experiments and, later, the agent tool layer.
 declare global {
   interface Window {
     nyal2d: {
-      runtime: IkiRuntime;
+      readonly runtime: PuppetRuntime | undefined;
       session: () => ModelSession | undefined;
       inspect: () => ReturnType<typeof inspectModel> | undefined;
+      settings: () => AppSettings;
       ready: Promise<void>;
     };
   }
 }
+
+const ready = (async () => {
+  await activateRuntime(settings);
+  if (runtime) await loadSample();
+})();
+
 window.nyal2d = {
-  runtime,
+  get runtime() {
+    return runtime;
+  },
   session: () => session,
   inspect: () => (session ? inspectModel(session.current) : undefined),
-  ready: loadSample(),
+  settings: () => settings,
+  ready,
 };

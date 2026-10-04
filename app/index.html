@@ -15,6 +15,7 @@
         <div class="doc">
           <span id="model-name" class="doc-name muted">모델 없음</span>
           <span id="model-badge" class="badge hide-md" hidden></span>
+          <span id="runtime-badge" class="badge hide-md" title="현재 런타임 · 설정에서 변경"></span>
         </div>
         <span class="spacer"></span>
         <div class="segmented" role="group" aria-label="모션 모드" id="motion-mode">
@@ -35,6 +36,7 @@
           <input id="file-input" type="file" accept=".iki,.json,application/json" class="sr-only" />
         </label>
         <button id="capture" class="btn icon" type="button" data-icon="camera" title="현재 프레임을 PNG로 저장" aria-label="프레임 캡처"></button>
+        <button id="settings" class="btn icon" type="button" data-icon="settings" title="설정" aria-label="설정"></button>
         <button id="export" class="btn primary" type="button" data-icon="download">내보내기</button>
       </header>
 
@@ -52,7 +54,6 @@
       </aside>
 
       <main class="stage" id="stage">
-        <canvas id="canvas" aria-label="모델 미리보기"></canvas>
         <div class="stage-hud">
           <span class="hud-chip" id="hud-status"><span class="pulse"></span><span>준비</span></span>
           <span class="spacer"></span>

@@ -49,9 +49,13 @@
 | 관찰(인스펙터) | 모델 타입 | 참조 관계(usedBy / drivenBy) 계산, 큰 배열 요약 | 앱 구현 |
 | 프레임 캡처 | 없음 | rAF 안에서 `canvas.toDataURL` | Observed |
 
+### 런타임 선택
+
+앱은 `PuppetRuntime` 인터페이스(`app/src/runtime/types.ts`)로 런타임을 다룬다. Iki는 이를 구현하면서 편집·물리 시뮬레이션·전체 인스펙션 기능을 추가로 제공한다. 외부 런타임(설정의 Ayagami 슬롯 등)은 [어댑터 규약](../runtime/adapter-contract.md)의 ES 모듈을 블랙박스로 불러오며, 파라미터·렌더·캡처만 쓸 수 있다. 각 런타임은 `capabilities`로 무엇이 되는지 밝히고, UI는 그에 따라 기능을 끈다.
+
 ### Web App 내부 규칙
 
-- `@ikijs/engine`을 import하는 곳은 `app/src/runtime/`뿐이다. UI와 (향후) 에이전트는 `IkiRuntime`만 본다.
+- `@ikijs/engine`을 import하는 곳은 `app/src/runtime/`뿐이다. UI와 (향후) 에이전트는 `PuppetRuntime`(Iki일 때는 `IkiRuntime`)만 본다.
 - 모델 변경은 반드시 `ModelSession.apply(EditCommand)`로 한다. 런타임 모델을 직접 바꾸지 않는다.
 - 사람과 에이전트는 같은 관찰(`inspectModel` 스냅샷)과 같은 변경 경로(`EditCommand`)를 쓴다.
 

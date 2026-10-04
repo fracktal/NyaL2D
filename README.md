@@ -22,6 +22,7 @@ npm run dev        # 브라우저에서 Vite URL 열기
 - **Inspector**: 개요 / 물리 / 파트 / 디포머 탭. 물리 탭은 리그마다 계단 응답 곡선과 최대·오버슈트·정착 시간을 보여 주고, 값을 바꾸면 원본 곡선과 겹쳐 비교한다.
 - **Changes**: 원본 → #1 → #2 … 타임라인. Undo/Redo(`Ctrl+Z`, `Ctrl+Shift+Z`), 원본으로.
 - 카메라 버튼은 현재 프레임 PNG, `내보내기`는 검증된 `.iki`를 저장한다.
+- **설정**(슬라이더 아이콘, `Ctrl+,`): 런타임 선택. Iki(내장, 전체 기능) 또는 Ayagami 슬롯(외부 어댑터 모듈을 블랙박스로 연결). 어댑터 규약: [docs/runtime/adapter-contract.md](docs/runtime/adapter-contract.md). Ayagami 어댑터 자체는 포함되어 있지 않으며, `예제 어댑터로 시험`으로 연결 경로를 확인할 수 있다.
 - 다크/라이트는 시스템 설정을 따른다. 글꼴은 Pretendard·JetBrains Mono를 번들에 포함한다(외부 요청 없음).
 
 ## 검증

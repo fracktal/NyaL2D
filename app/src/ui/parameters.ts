@@ -1,6 +1,5 @@
 import { StandardParameter as SP } from "@ikijs/format";
-import type { ModelSnapshot } from "../inspection/inspect";
-import type { IkiRuntime } from "../runtime/iki-runtime";
+import type { PuppetRuntime } from "../runtime/types";
 import { el, fmt } from "./dom";
 import { icon } from "./icons";
 
@@ -25,13 +24,17 @@ export interface ParameterPanel {
  */
 export function renderParameters(
   root: HTMLElement,
-  runtime: IkiRuntime,
-  snap: ModelSnapshot,
+  runtime: PuppetRuntime | undefined,
+  /** Parameters written by physics rigs (shown in their own group). */
+  physicsOut: ReadonlySet<string>,
   filter: string,
 ): ParameterPanel {
   root.replaceChildren();
+  if (!runtime) {
+    root.append(el("div", { class: "empty" }, "모델을 열면 파라미터가 여기에 나타납니다"));
+    return { update() {} };
+  }
   const drivenByMotion = new Set(runtime.drivenParameterIds);
-  const physicsOut = new Set(snap.parameters.filter((p) => p.drivenBy.length).map((p) => p.id));
   const params = runtime.getParameters();
   const q = filter.trim().toLowerCase();
   const visible = params.filter((p) => !q || p.id.toLowerCase().includes(q) || (p.name ?? "").toLowerCase().includes(q));

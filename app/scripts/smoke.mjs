@@ -159,6 +159,45 @@ try {
   await page.screenshot({ path: `${OUT}/05-deformers-error-dark.png` });
   results.errorOverlay = await page.locator(".error-detail").textContent();
 
+  // Runtime selection: switch to the Ayagami slot backed by the example adapter.
+  await page.click('button[aria-label="이전 모델로 돌아가기"], .overlay-card button:has-text("돌아가기")').catch(() => {});
+  await page.click("#settings");
+  await page.click('.rt-card:has-text("Ayagami")');
+  await page.click('button:has-text("예제 어댑터로 시험")');
+  await page.waitForSelector(".rt-status.ok");
+  results.adapterStatus = await page.locator(".rt-status").textContent();
+  await page.screenshot({ path: `${OUT}/06-settings-dark.png` });
+  await page.click('.modal button:has-text("적용")');
+  await page.waitForFunction(() => window.nyal2d.runtime?.kind === "ayagami" && window.nyal2d.runtime.getParameters().length > 0);
+  await page.waitForTimeout(400);
+  results.external = await page.evaluate(async () => {
+    const rt = window.nyal2d.runtime;
+    rt.setParameter("ParamAngleX", 25);
+    rt.setParameter("ParamMouthOpenY", 0.8);
+    const blob = await rt.captureFrame();
+    return {
+      kind: rt.kind,
+      label: rt.label,
+      capabilities: rt.capabilities,
+      parameters: rt.getParameters().map((p) => p.id),
+      angleX: rt.getParameter("ParamAngleX"),
+      clampedTo: (rt.setParameter("ParamAngleX", 999), rt.getParameter("ParamAngleX")),
+      captureBytes: blob.size,
+      exportDisabled: document.getElementById("export").disabled,
+      motionButtons: [...document.querySelectorAll("#motion-mode button")].map((b) => [b.dataset.mode, b.disabled]),
+    };
+  });
+  await page.evaluate(() => window.nyal2d.runtime.setParameter("ParamAngleX", 25));
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: `${OUT}/07-external-runtime-dark.png` });
+
+  // And back to Iki.
+  await page.click("#settings");
+  await page.click('.rt-card:has-text("Iki")');
+  await page.click('.modal button:has-text("적용")');
+  await page.waitForFunction(() => window.nyal2d.runtime?.kind === "iki" && !!window.nyal2d.session());
+  results.backToIki = await page.evaluate(() => ({ kind: window.nyal2d.runtime.kind, parts: window.nyal2d.inspect().parts.length }));
+
   results.console = consoleLines;
 } finally {
   writeFileSync(`${OUT}/results.json`, JSON.stringify(results, null, 2));

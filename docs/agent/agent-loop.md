@@ -55,7 +55,7 @@ Claude Desktop은 `claude_desktop_config.json`에 추가한다.
 { "mcpServers": { "nyal2d": { "command": "node", "args": ["/절대경로/NyaL2D/app/server/mcp-bridge.ts"] } } }
 ```
 
-그다음 앱의 에이전트 탭에서 플러그 버튼(Claude 앱 연결)을 켠다. 외부 클라이언트의 도구 호출도 패널에 "{클라이언트}에서 실행"으로 표시된다. 허브는 포트 8788 하나를 쓰므로 `proxy:claude`와 `mcp-bridge`는 동시에 하나만 띄운다. 탭을 여러 개 열면 마지막에 연결한 탭이 조작 대상이 된다. Node 22.6 이상이 필요하다(TypeScript를 바로 실행).
+그다음 앱의 에이전트 탭에서 플러그 버튼(Claude 앱 연결)을 켠다. 외부 클라이언트의 도구 호출도 패널에 "{클라이언트}에서 실행"으로 표시된다. 허브는 포트 8788 하나를 쓰므로 `proxy:claude`와 `mcp-bridge`는 동시에 하나만 띄운다. 탭을 여러 개 열면 마지막에 연결한 탭이 조작 대상이 된다. Node 22.18 이상이 필요하다(서버 코드를 TypeScript 그대로 실행).
 
 ## 단계 표시
 

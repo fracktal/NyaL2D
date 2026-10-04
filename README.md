@@ -20,6 +20,8 @@ npm run proxy:mock # 키 없이 에이전트 UI를 시험하는 모의 응답 �
 npm run proxy:claude # API 키 없이, 이 컴퓨터에 로그인된 Claude Code(내 Claude 계정)로 에이전트 요청 처리
 ```
 
+Node 22.18 이상이 필요하다. Windows에서는 WSL2(Ubuntu 등) 안에서 그대로 실행하고 Windows 브라우저로 `http://localhost:5173`을 연다. 저장소는 `/mnt/c` 아래보다 WSL 홈(`~/`)에 두는 편이 설치와 파일 감시가 빠르다.
+
 `proxy:claude`는 `claude` CLI가 설치되어 있고 `claude auth login`으로 로그인되어 있어야 한다. 에이전트 패널에 입력한 요청을 Claude Code가 받아, 열린 페이지의 도구만 써서 처리한다(파일·셸·웹 도구는 꺼 둠). 개인·로컬 시험용이며, 다른 사람에게 배포하는 제품은 API 키 제공자(`npm run proxy`)를 쓴다. 터미널의 Claude Code나 Claude Desktop에서 앱을 직접 조작하는 방법은 [docs/agent/agent-loop.md](docs/agent/agent-loop.md#claude-code로-실행하기-api-키-없이)에 있다.
 
 - 샘플 모델(`hero.iki`, Iki 저장소의 플레이그라운드 모델)이 자동으로 열린다. `열기`나 스테이지에 `.iki`를 끌어다 놓아 다른 모델을 연다.

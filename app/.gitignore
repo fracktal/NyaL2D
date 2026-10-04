@@ -2,3 +2,4 @@ node_modules
 dist
 smoke-out
 smoke.log
+import-out

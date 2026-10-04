@@ -22,7 +22,7 @@ interface MotionDriver {
 export class IkiRuntime implements PuppetRuntime {
   readonly kind = "iki";
   readonly label = "Iki";
-  readonly accept = ".iki,.json,application/json";
+  readonly accept = ".iki,.json,application/json,.psd,.png,.webp";
   /**
    * Motion modes:
    * - `idle`: Iki's bundled idle (blink, breath, gaze, head sway) + physics.

@@ -3,6 +3,7 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 import { loadIkiModel, type IkiModel } from "@ikijs/format";
+import { importLayeredArt, isLayeredArt } from "./import/layer-import";
 import { inspectModel } from "./inspection/inspect";
 import { ModelSession } from "./model/model-session";
 import { ProxyLlmClient } from "./agent/llm";
@@ -245,9 +246,28 @@ async function openExternal(files: File[], label: string): Promise<void> {
   setStatus(external.modelName ?? label);
 }
 
+/** PSD or layer PNGs → auto-rigged `.iki`, opened like any other model. */
+async function importArt(files: File[]): Promise<void> {
+  const label = files.length === 1 ? files[0].name : `레이어 ${files.length}장`;
+  setOverlay({ kind: "loading", label: `${label} 자동 리깅 중` });
+  let result: Awaited<ReturnType<typeof importLayeredArt>>;
+  try {
+    result = await importLayeredArt(files);
+  } catch (err) {
+    setOverlay({ kind: "error", title: `${label}을(를) 모델로 만들 수 없습니다`, detail: (err as Error).message });
+    setStatus("가져오기 실패");
+    return;
+  }
+  await openIkiText(result.text, `${result.name}.iki`);
+  const { report } = result;
+  console.info("[nyal2d] layer import", report);
+  toast(`${result.name}: 부위 ${report.roles.length}개로 리깅 (${report.roles.map((r) => r.role).join(", ")})${report.dropped.length ? ` · 제외 ${report.dropped.length}개` : ""}`);
+}
+
 async function openFiles(files: File[]): Promise<void> {
   if (!files.length) return;
-  if (iki) await openIkiText(await files[0].text(), files[0].name);
+  if (iki && isLayeredArt(files)) await importArt(files);
+  else if (iki) await openIkiText(await files[0].text(), files[0].name);
   else if (external?.connected) await openExternal(files, files[0].name);
   else if (external) setOverlay({ kind: "unconnected", name: external.label });
 }

@@ -7,6 +7,8 @@ export interface RuntimeDescriptor {
   summary: string;
   formats: string;
   license: string;
+  /** Adapter module used when Settings leaves the URL empty. */
+  defaultAdapterUrl?: string;
 }
 
 export const RUNTIMES: readonly RuntimeDescriptor[] = [
@@ -25,6 +27,7 @@ export const RUNTIMES: readonly RuntimeDescriptor[] = [
     summary: "외부 어댑터 모듈로 연결하는 블랙박스 런타임. 파라미터 조작, 렌더, 캡처를 지원합니다.",
     formats: "어댑터가 정함 (예: .moc3, .zip)",
     license: "MIT / Apache-2.0",
+    defaultAdapterUrl: "./adapters/ayagami-adapter.js",
   },
 ];
 
@@ -57,6 +60,11 @@ export function saveSettings(s: AppSettings): void {
   } catch {
     // Private mode or blocked storage: settings last for this session only.
   }
+}
+
+/** The adapter URL to use for a runtime: the user's, else the default wrapper. */
+export function adapterUrlFor(s: AppSettings, id: RuntimeId): string | undefined {
+  return s.adapterUrls[id] || RUNTIMES.find((r) => r.id === id)?.defaultAdapterUrl;
 }
 
 export const EXAMPLE_ADAPTER_URL = "./adapters/example-adapter.js";

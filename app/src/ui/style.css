@@ -139,7 +139,8 @@ button, input, select { font: inherit; color: inherit; }
 }
 .btn:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--border-strong); }
 .btn:active:not(:disabled) { transform: translateY(0.5px); }
-.btn:disabled { opacity: 0.38; cursor: default; }
+.btn:disabled, .btn.disabled { opacity: 0.38; cursor: default; }
+.btn.disabled { pointer-events: none; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .btn.primary:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
@@ -465,6 +466,7 @@ svg.kind { width: 14px; height: 14px; color: var(--text-3); flex: none; }
 .rt-status svg { width: 14px; height: 14px; flex: none; }
 .rt-status.ok { color: var(--ok); }
 .rt-status.error { color: var(--danger); }
+.rt-status.warn { color: var(--accent); }
 .rt-note { margin: 8px 0 0 22px; font-size: 11.5px; color: var(--text-3); }
 .rt-note a { color: var(--accent); text-decoration: none; }
 .rt-note a:hover { text-decoration: underline; }
@@ -479,3 +481,4 @@ svg.kind { width: 14px; height: 14px; color: var(--text-3); flex: none; }
 .cap-list .no { color: var(--text-3); }
 .cap-list .no svg { color: var(--text-3); }
 .segmented button:disabled { opacity: 0.35; cursor: default; }
+.stage-overlay.unconnected .error-detail { color: var(--text-2); }

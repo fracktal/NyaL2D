@@ -258,7 +258,7 @@ export function renderInspector(tabsRoot: HTMLElement, root: HTMLElement, snap: 
 export function renderRuntimeInspector(
   tabsRoot: HTMLElement,
   root: HTMLElement,
-  info: { runtime: string; adapter?: string; model?: string; parameters: number; capabilities: RuntimeCapabilities },
+  info: { runtime: string; adapter?: string; connected?: boolean; model?: string; parameters: number; capabilities: RuntimeCapabilities },
 ): void {
   tabsRoot.replaceChildren(el("button", { class: "tab", role: "tab", type: "button", "aria-selected": "true" }, "개요"));
   const cap = (ok: boolean, label: string) => {
@@ -274,6 +274,7 @@ export function renderRuntimeInspector(
       props([
         ["runtime", info.runtime],
         ["adapter", info.adapter ?? "—"],
+        ["status", info.connected === false ? "미연결 · 빈 래퍼" : "연결됨"],
         ["model", info.model ?? "열린 모델 없음"],
         ["parameters", String(info.parameters)],
       ]),

@@ -13,6 +13,11 @@ export interface AdapterMeta {
   accept?: string;
   /** Motion modes the adapter can run besides "off". */
   motionModes?: MotionMode[];
+  /**
+   * `false` marks an empty wrapper that is not wired to its runtime yet; the
+   * app then shows a "not connected" state instead of opening models.
+   */
+  connected?: boolean;
 }
 
 /** What an adapter's `create()` resolves to. Optional members may be absent. */
@@ -114,6 +119,11 @@ export class ExternalRuntime implements PuppetRuntime {
   static async create(kind: string, mod: AdapterModule, canvas: HTMLCanvasElement): Promise<ExternalRuntime> {
     const inst = validateInstance(await mod.create(canvas));
     return new ExternalRuntime(kind, mod.meta, inst, canvas);
+  }
+
+  /** False for an empty wrapper (`meta.connected === false`). */
+  get connected(): boolean {
+    return this.meta.connected !== false;
   }
 
   get adapterVersion(): string | undefined {

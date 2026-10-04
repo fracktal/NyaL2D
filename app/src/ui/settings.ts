@@ -1,5 +1,5 @@
 import { importAdapter } from "../runtime/external-runtime";
-import { CONTRACT_DOC_URL, EXAMPLE_ADAPTER_URL, RUNTIMES, type AppSettings, type RuntimeId } from "../runtime/registry";
+import { adapterUrlFor, CONTRACT_DOC_URL, EXAMPLE_ADAPTER_URL, RUNTIMES, type AppSettings, type RuntimeId } from "../runtime/registry";
 import { el } from "./dom";
 import { icon } from "./icons";
 
@@ -36,17 +36,20 @@ export function openSettings(current: AppSettings): Promise<AppSettings | undefi
         class: "text-input mono",
         // Not type="url": relative module paths are valid here.
         type: "text",
-        placeholder: "https://…/adapter.js",
+        placeholder: r.defaultAdapterUrl ? `${r.defaultAdapterUrl} (기본 래퍼)` : "https://…/adapter.js",
         value: draft.adapterUrls[r.id] ?? "",
         "aria-label": `${r.name} 어댑터 모듈 URL`,
         spellcheck: "false",
       });
-      const line = el("div", { class: "rt-status muted" }, "어댑터 모듈 URL을 넣고 연결을 확인하세요.");
+      const idleHint = r.defaultAdapterUrl
+        ? "비워 두면 기본 래퍼를 씁니다. 다른 어댑터가 있으면 URL을 넣으세요."
+        : "어댑터 모듈 URL을 넣고 연결을 확인하세요.";
+      const line = el("div", { class: "rt-status muted" }, idleHint);
       status.set(r.id, line);
       url.addEventListener("input", () => {
         draft.adapterUrls[r.id] = url.value.trim();
         line.className = "rt-status muted";
-        line.textContent = "연결을 확인하세요.";
+        line.textContent = url.value.trim() ? "연결을 확인하세요." : idleHint;
         validate();
       });
       const test = el("button", { class: "btn sm", type: "button" }, "연결 확인");
@@ -55,10 +58,11 @@ export function openSettings(current: AppSettings): Promise<AppSettings | undefi
         line.className = "rt-status muted";
         line.textContent = "확인 중…";
         try {
-          const mod = await importAdapter(url.value.trim());
-          line.className = "rt-status ok";
-          line.innerHTML = `${icon("check")}<span></span>`;
-          line.querySelector("span")!.textContent = `${mod.meta.name}${mod.meta.version ? ` v${mod.meta.version}` : ""} · 규약 v1 확인됨`;
+          const mod = await importAdapter(adapterUrlFor(draft, r.id) ?? "");
+          const connected = mod.meta.connected !== false;
+          line.className = connected ? "rt-status ok" : "rt-status warn";
+          line.innerHTML = `${icon(connected ? "check" : "plug")}<span></span>`;
+          line.querySelector("span")!.textContent = `${mod.meta.name}${mod.meta.version ? ` v${mod.meta.version}` : ""} · 규약 v1 확인됨${connected ? "" : " · 빈 래퍼라 아직 모델을 열 수 없습니다"}`;
         } catch (err) {
           line.className = "rt-status error";
           line.innerHTML = `${icon("alert")}<span></span>`;
@@ -73,7 +77,9 @@ export function openSettings(current: AppSettings): Promise<AppSettings | undefi
         test.click();
       });
       const note = el("p", { class: "rt-note" });
-      note.innerHTML = `${r.name} 어댑터는 앱에 포함되어 있지 않습니다. <a href="${CONTRACT_DOC_URL}" target="_blank" rel="noopener">어댑터 규약</a>을 따르는 ES 모듈을 만들어 그 URL을 지정하면, 앱은 규약 함수만 호출하는 블랙박스로 사용합니다.`;
+      note.innerHTML = r.defaultAdapterUrl
+        ? `기본 래퍼는 <a href="${CONTRACT_DOC_URL}" target="_blank" rel="noopener">어댑터 규약</a>의 모양만 갖춘 빈 모듈입니다. 사람이 ${r.name}를 연결해 채우거나 규약을 따르는 다른 모듈 URL을 넣으면, 앱은 규약 함수만 호출하는 블랙박스로 사용합니다.`
+        : `${r.name} 어댑터는 앱에 포함되어 있지 않습니다. <a href="${CONTRACT_DOC_URL}" target="_blank" rel="noopener">어댑터 규약</a>을 따르는 ES 모듈을 만들어 그 URL을 지정하면, 앱은 규약 함수만 호출하는 블랙박스로 사용합니다.`;
       card.append(el("div", { class: "rt-url" }, url, test), el("div", { class: "rt-actions" }, example), line, note);
     }
     return card;
@@ -86,7 +92,7 @@ export function openSettings(current: AppSettings): Promise<AppSettings | undefi
 
   const validate = () => {
     const r = RUNTIMES.find((x) => x.id === draft.runtime)!;
-    apply.disabled = r.kind === "external" && !draft.adapterUrls[r.id];
+    apply.disabled = r.kind === "external" && !adapterUrlFor(draft, r.id);
   };
   validate();
 

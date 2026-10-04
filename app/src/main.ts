@@ -7,7 +7,7 @@ import { inspectModel } from "./inspection/inspect";
 import { ModelSession } from "./model/model-session";
 import { ExternalRuntime, importAdapter } from "./runtime/external-runtime";
 import { IkiRuntime } from "./runtime/iki-runtime";
-import { loadSettings, RUNTIMES, saveSettings, type AppSettings } from "./runtime/registry";
+import { adapterUrlFor, loadSettings, RUNTIMES, saveSettings, type AppSettings, type RuntimeId } from "./runtime/registry";
 import type { MotionMode, PuppetRuntime } from "./runtime/types";
 import { renderChanges } from "./ui/changes";
 import { icon } from "./ui/icons";
@@ -50,6 +50,7 @@ type OverlayState =
   | { kind: "empty"; hint: string }
   | { kind: "drop" }
   | { kind: "error"; title: string; detail: string }
+  | { kind: "unconnected"; name: string }
   | { kind: "none" };
 let overlayBeforeDrop: OverlayState = { kind: "none" };
 let overlayState: OverlayState = { kind: "none" };
@@ -86,6 +87,17 @@ function setOverlay(state: OverlayState): void {
       actions.append(button("btn ghost", "설정 열기", () => void showSettings()));
       card.append(actions);
       (actions.firstElementChild as HTMLElement).focus();
+      break;
+    }
+    case "unconnected": {
+      card.innerHTML = `${icon("plug", "big-icon")}<h3></h3><p></p><div class="error-detail mono">app/public/adapters/ayagami-adapter.js</div>`;
+      card.querySelector("h3")!.textContent = `${state.name} 런타임이 아직 연결되지 않았습니다`;
+      card.querySelector("p")!.textContent = `지금 슬롯에는 빈 래퍼가 들어 있습니다. 래퍼를 채우거나 설정에서 다른 어댑터 URL을 지정하면 여기서 모델을 열 수 있습니다.`;
+      card.querySelector(".error-detail")!.textContent = adapterUrlFor(settings, settings.runtime) ?? "";
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:8px";
+      actions.append(button("btn", "설정 열기", () => void showSettings()), button("btn ghost", "Iki로 돌아가기", () => void switchRuntime("iki")));
+      card.append(actions);
       break;
     }
     default:
@@ -140,12 +152,12 @@ async function activateRuntime(next: AppSettings): Promise<void> {
       iki = new IkiRuntime(canvas);
       runtime = iki;
     } else {
-      const url = next.adapterUrls[desc.id];
+      const url = adapterUrlFor(next, desc.id);
       if (!url) throw new Error(`${desc.name} 어댑터 URL이 설정되지 않았습니다`);
       setOverlay({ kind: "loading", label: `${desc.name} 어댑터 연결 중` });
       external = await ExternalRuntime.create(desc.id, await importAdapter(url), canvas);
       runtime = external;
-      $("runtime-badge").textContent = `${desc.name} · ${external.label}`;
+      $("runtime-badge").textContent = external.connected ? `${desc.name} · ${external.label}` : `${desc.name} · 미연결`;
     }
   } catch (err) {
     syncChrome(true);
@@ -156,13 +168,25 @@ async function activateRuntime(next: AppSettings): Promise<void> {
   unsubscribeParams = runtime.onParameter((id, v) => panel.update(id, v));
   $<HTMLInputElement>("file-input").accept = runtime.accept;
   syncChrome(true);
+  if (external && !external.connected) {
+    setOverlay({ kind: "unconnected", name: desc.name });
+    setStatus(`${desc.name} 미연결`);
+    return;
+  }
   setOverlay({ kind: "empty", hint: `${runtime.accept || "모델 파일"}을(를) 끌어다 놓거나 상단의 열기 또는 샘플을 누르세요.` });
   setStatus(`${desc.name} 준비됨`);
 }
 
 async function showSettings(): Promise<void> {
   const next = await openSettings(settings);
-  if (!next) return;
+  if (next) await applySettings(next);
+}
+
+async function switchRuntime(id: RuntimeId): Promise<void> {
+  await applySettings({ ...settings, runtime: id });
+}
+
+async function applySettings(next: AppSettings): Promise<void> {
   const changed = JSON.stringify(next) !== JSON.stringify(settings);
   settings = next;
   saveSettings(settings);
@@ -215,7 +239,8 @@ async function openExternal(files: File[], label: string): Promise<void> {
 async function openFiles(files: File[]): Promise<void> {
   if (!files.length) return;
   if (iki) await openIkiText(await files[0].text(), files[0].name);
-  else if (external) await openExternal(files, files[0].name);
+  else if (external?.connected) await openExternal(files, files[0].name);
+  else if (external) setOverlay({ kind: "unconnected", name: external.label });
 }
 
 /** Push the session's current model into Iki and redraw the panels. */
@@ -257,6 +282,7 @@ function syncChrome(rebuildParams = false): void {
     renderRuntimeInspector($("inspector-tabs"), $("inspector"), {
       runtime: RUNTIMES.find((r) => r.id === settings.runtime)!.name,
       adapter: external ? `${external.label}${external.adapterVersion ? ` v${external.adapterVersion}` : ""}` : "내장",
+      connected: external?.connected,
       model: modelName,
       parameters: hasModel() ? runtime.getParameters().length : 0,
       capabilities: runtime.capabilities,
@@ -280,6 +306,10 @@ function syncChrome(rebuildParams = false): void {
   $<HTMLButtonElement>("export").disabled = !session;
   $<HTMLButtonElement>("capture").disabled = !hasModel();
   $<HTMLButtonElement>("reset-pose").disabled = !hasModel();
+  const canOpen = !!runtime && (!external || external.connected);
+  $<HTMLButtonElement>("load-sample").disabled = !canOpen;
+  $<HTMLInputElement>("file-input").disabled = !canOpen;
+  $("file-input").parentElement!.classList.toggle("disabled", !canOpen);
 }
 
 function rebuildParameters(): void {
@@ -297,7 +327,7 @@ async function loadSample(): Promise<void> {
     } catch (err) {
       setOverlay({ kind: "error", title: "샘플을 불러오지 못했습니다", detail: (err as Error).message });
     }
-  } else if (external) {
+  } else if (external?.connected) {
     // Contract: load([]) opens the adapter's built-in sample, if it has one.
     await openExternal([], `${external.label} 샘플`);
   }

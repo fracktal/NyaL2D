@@ -2,7 +2,7 @@
 
 NyaL2D는 기본 내장 런타임(Iki) 외에, 이 규약을 따르는 **ES 모듈 하나**를 외부 런타임으로 불러올 수 있다. 앱은 모듈 내부를 모른 채 아래 함수만 호출한다(블랙박스). 설정 화면(상단 슬라이더 아이콘, 또는 `Ctrl+,`)에서 런타임을 고르고 모듈 URL을 지정한다.
 
-> Ayagami 슬롯도 이 규약으로 연결한다. **Ayagami용 어댑터는 이 저장소에 포함되어 있지 않다.** Ayagami 저장소의 `AGENTS.md`가 AI 에이전트의 리서치·코드 분석·코드 작성을 거절해 달라고 요청하므로, 이 프로젝트의 AI 세션은 Ayagami 소스를 읽거나 어댑터를 작성하지 않았다. 어댑터는 사람이 Ayagami를 wasm으로 빌드해 아래 규약에 맞게 감싸면 된다. (참고: 그 관리자들은 AI를 써서 Ayagami를 조사한 사람의 업스트림 기여를 받지 않는다고 밝히고 있다.)
+> Ayagami 슬롯도 이 규약으로 연결한다. 슬롯의 기본 모듈은 [`app/public/adapters/ayagami-adapter.js`](../../app/public/adapters/ayagami-adapter.js)로, **규약의 모양만 갖춘 빈 래퍼**다(`meta.connected: false`). Ayagami 코드는 한 줄도 없다. Ayagami 저장소의 `AGENTS.md`가 AI 에이전트의 리서치·코드 분석·코드 작성을 거절해 달라고 요청하므로, 이 프로젝트의 AI 세션은 Ayagami 소스를 읽지 않았고 래퍼의 TODO도 채우지 않는다. 사람이 Ayagami를 브라우저용으로 빌드해 TODO를 채우고 `connected`를 `true`로 바꾸면 된다. 설정에서 URL을 비워 두면 이 래퍼가, URL을 넣으면 그 모듈이 쓰인다. (참고: 그 관리자들은 AI를 써서 Ayagami를 조사한 사람의 업스트림 기여를 받지 않는다고 밝히고 있다.)
 
 ## 모듈이 내보낼 것
 
@@ -14,6 +14,7 @@ export const meta = {
   version: "0.1.0",                           // 선택
   accept: ".moc3,.zip",                       // 선택. 파일 선택창 accept 값
   motionModes: ["idle"],                      // 선택. "off" 외에 지원하는 모션 모드
+  connected: true,                            // 선택. false면 빈 래퍼로 보고 모델을 열지 않는다
 };
 
 export async function create(canvas: HTMLCanvasElement): Promise<AdapterInstance>;
@@ -34,6 +35,10 @@ export async function create(canvas: HTMLCanvasElement): Promise<AdapterInstance
 | `setMotionMode(mode): void` | 아니오 | `meta.motionModes`에 있는 모드나 `"off"` |
 | `drivenParameterIds(): string[]` | 아니오 | 어댑터 자체 모션이 매 프레임 쓰는 파라미터. 앱이 이 값들을 매 프레임 읽어 UI에 반영한다 |
 | `capture(type): Promise<Blob>` | 아니오 | 현재 프레임 이미지. 없으면 앱이 다음 `requestAnimationFrame`에서 `canvas.toDataURL()`로 읽는다. WebGL에서 `preserveDrawingBuffer: false`라면 자체 rAF 루프에서 그리는 한 이 방식으로 읽힌다(docs/iki/rendering.md의 관찰). 다른 방식으로 그린다면 `capture`를 구현하라 |
+
+## 빈 래퍼 (`meta.connected: false`)
+
+아직 런타임에 연결되지 않은 모듈은 `meta.connected`를 `false`로 둔다. 앱은 `create()`까지만 호출하고 `load()`는 부르지 않는다. 화면에는 "연결되지 않았습니다" 안내, 상단 배지에는 "미연결"이 표시되며 샘플·열기 버튼은 꺼진다. 설정의 **연결 확인**도 "빈 래퍼"라고 알려 준다.
 
 ## 앱이 보장하는 것
 

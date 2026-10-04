@@ -159,8 +159,27 @@ try {
   await page.screenshot({ path: `${OUT}/05-deformers-error-dark.png` });
   results.errorOverlay = await page.locator(".error-detail").textContent();
 
-  // Runtime selection: switch to the Ayagami slot backed by the example adapter.
+  // Runtime selection: the Ayagami slot with no URL uses the empty wrapper.
   await page.click('button[aria-label="이전 모델로 돌아가기"], .overlay-card button:has-text("돌아가기")').catch(() => {});
+  await page.click("#settings");
+  await page.click('.rt-card:has-text("Ayagami")');
+  await page.click('.rt-card.selected button:has-text("연결 확인")');
+  await page.waitForSelector(".rt-status.warn");
+  results.wrapperStatus = await page.locator(".rt-card.selected .rt-status").textContent();
+  await page.click('.modal button:has-text("적용")');
+  await page.waitForSelector(".stage-overlay.unconnected");
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: `${OUT}/06a-ayagami-unconnected-dark.png` });
+  results.unconnected = await page.evaluate(() => ({
+    kind: window.nyal2d.runtime?.kind,
+    connected: window.nyal2d.runtime?.connected,
+    title: document.querySelector("#overlay-card h3")?.textContent,
+    badge: document.getElementById("runtime-badge").textContent,
+    sampleDisabled: document.getElementById("load-sample").disabled,
+    openDisabled: document.getElementById("file-input").disabled,
+  }));
+
+  // Then the same slot backed by the example adapter.
   await page.click("#settings");
   await page.click('.rt-card:has-text("Ayagami")');
   await page.click('button:has-text("예제 어댑터로 시험")');

@@ -56,6 +56,12 @@ export interface ProxyHealth {
   provider: string;
   model: string;
   ready: boolean;
+  /**
+   * "turn": the browser runs the agent loop and asks for one model turn at a
+   * time (POST /llm/turn). "run": the provider runs the whole request itself
+   * (Claude Code), calling the page's tools over the tool hub (POST /llm/run).
+   */
+  mode?: "turn" | "run";
   /** Why the provider is not ready, in words a person can act on. */
   detail?: string;
 }
@@ -65,3 +71,16 @@ export interface ProxyError {
   /** Whether trying again later may succeed (rate limit, overload, network). */
   retryable?: boolean;
 }
+
+/** POST /llm/run: one request handled end to end by the provider. */
+export interface RunRequest {
+  prompt: string;
+  /** Continue this conversation (from a previous `done` event). */
+  sessionId?: string;
+}
+
+/** Streamed back from /llm/run as newline-delimited JSON. */
+export type RunEvent =
+  | { type: "text"; text: string }
+  | { type: "done"; sessionId?: string; costUsd?: number; note?: string }
+  | { type: "error"; error: string; retryable?: boolean };

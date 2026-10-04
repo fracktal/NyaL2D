@@ -1,6 +1,8 @@
+import type { BridgeClient, BridgeState } from "../agent/bridge";
 import type { LlmClient } from "../agent/llm";
-import type { AgentEvent, AgentPhase, AgentSession } from "../agent/loop";
+import type { AgentEvent, AgentPhase } from "../agent/loop";
 import type { ProxyHealth } from "../agent/protocol";
+import type { AgentDriver } from "../agent/router";
 import { el } from "./dom";
 import { icon, iconEl } from "./icons";
 
@@ -36,8 +38,16 @@ export interface AgentPanel {
  * calls tools itself; the transcript shows each tool step with the phase it
  * belongs to (analyze, plan, change, evaluate).
  */
-export function mountAgentPanel(root: HTMLElement, agent: AgentSession, client: LlmClient): AgentPanel {
+export function mountAgentPanel(
+  root: HTMLElement,
+  agent: AgentDriver,
+  client: LlmClient,
+  bridge: BridgeClient,
+  opts: { onHealth?: (h: ProxyHealth | undefined) => void } = {},
+): AgentPanel {
   const status = el("span", { class: "agent-status", role: "status" });
+  const link = el("button", { class: "btn ghost sm bridge-toggle", type: "button", "aria-pressed": "false" });
+  link.innerHTML = `${icon("plug")}<span class="bridge-dot"></span>`;
   const reset = el("button", { class: "btn ghost sm", type: "button", title: "대화를 지우고 새로 시작" });
   reset.innerHTML = `${icon("plus")}<span>새 대화</span>`;
   const log = el("div", { class: "agent-log", "aria-live": "polite" });
@@ -47,7 +57,7 @@ export function mountAgentPanel(root: HTMLElement, agent: AgentSession, client: 
   const hint = el("div", { class: "agent-hint" }, "Enter 보내기 · Shift+Enter 줄바꿈 · Undo로 되돌리기");
 
   root.replaceChildren(
-    el("div", { class: "agent-head" }, status, el("span", { class: "spacer" }), reset),
+    el("div", { class: "agent-head" }, status, el("span", { class: "spacer" }), link, reset),
     log,
     el("div", { class: "agent-composer" }, el("div", { class: "agent-box" }, input, send), hint),
   );
@@ -85,10 +95,13 @@ export function mountAgentPanel(root: HTMLElement, agent: AgentSession, client: 
     log.scrollTop = log.scrollHeight;
   };
 
-  const ensureRun = () => {
-    if (!run) {
+  let runIsExternal = false;
+  const ensureRun = (external = false) => {
+    if (!run || external !== runIsExternal) {
       log.querySelector(".agent-empty")?.remove();
-      run = el("div", { class: "agent-run" });
+      run = el("div", { class: external ? "agent-run external" : "agent-run" });
+      if (external) run.append(el("div", { class: "run-label" }, iconEl("plug"), `${bridge.clientName ?? "외부 Claude"}에서 실행`));
+      runIsExternal = external;
       log.append(run);
     }
     return run;
@@ -136,7 +149,7 @@ export function mountAgentPanel(root: HTMLElement, agent: AgentSession, client: 
         break;
       }
       case "tool_call": {
-        const r = ensureRun();
+        const r = ensureRun(!!e.external);
         r.querySelector(".thinking")?.remove();
         const label = TOOL_LABELS[e.name] ?? e.name;
         const row = el(
@@ -168,7 +181,7 @@ export function mountAgentPanel(root: HTMLElement, agent: AgentSession, client: 
           img.src = URL.createObjectURL(e.image);
           row.querySelector(".step-body")!.append(img);
         }
-        ensureRun().append(el("div", { class: "thinking" }, el("span", { class: "spinner sm" }), "생각하는 중"));
+        if (agent.busy) ensureRun().append(el("div", { class: "thinking" }, el("span", { class: "spinner sm" }), "생각하는 중"));
         break;
       }
       case "done":
@@ -201,14 +214,43 @@ export function mountAgentPanel(root: HTMLElement, agent: AgentSession, client: 
     clear();
   });
 
+  const syncLink = (s: BridgeState = bridge.state) => {
+    const runMode = health?.mode === "run";
+    link.hidden = runMode;
+    link.setAttribute("aria-pressed", String(bridge.isEnabled));
+    link.className = `btn ghost sm bridge-toggle ${s}`;
+    link.title = !bridge.isEnabled
+      ? "Claude 앱 연결 켜기: Claude Desktop이나 터미널의 Claude Code가 이 화면의 도구를 쓰게 합니다 (npm run mcp)"
+      : s === "connected"
+        ? `${bridge.clientName ?? "Claude"} 연결됨 · 눌러서 끄기`
+        : "MCP 브리지를 기다리는 중 · Claude 앱에 nyal2d MCP 서버를 등록하세요 · 눌러서 끄기";
+  };
+  link.addEventListener("click", () => {
+    if (bridge.isEnabled) bridge.disable();
+    else bridge.enable();
+    try {
+      localStorage.setItem("nyal2d.bridge", bridge.isEnabled ? "on" : "off");
+    } catch {
+      // Storage blocked: the choice lasts for this page only.
+    }
+    syncLink();
+  });
+  bridge.onState((s) => syncLink(s));
+
   async function refreshHealth() {
     if (agent.busy) return;
     try {
       health = await client.health();
+      opts.onHealth?.(health);
+      syncLink();
       if (!health.ready) setStatus("warn", `${health.provider} 준비 안 됨`, health.detail ?? "");
       else if (health.provider === "mock") setStatus("mock", "모의 응답 모드", "프록시가 NYAL2D_LLM_PROVIDER=mock으로 실행 중입니다");
+      else if (health.mode === "run") setStatus("ok", `${health.model} · 내 Claude 계정`, "로컬 Claude Code CLI가 요청을 처리합니다 (API 키 불필요)");
       else setStatus("ok", modelLabel(health.model), `${health.provider} · 로컬 프록시 경유`);
     } catch (err) {
+      health = undefined;
+      opts.onHealth?.(undefined);
+      syncLink();
       setStatus("warn", "프록시 연결 안 됨", (err as Error).message);
     }
   }
@@ -221,8 +263,14 @@ export function mountAgentPanel(root: HTMLElement, agent: AgentSession, client: 
     syncComposer();
   }
 
+  try {
+    if (localStorage.getItem("nyal2d.bridge") === "on") bridge.enable();
+  } catch {
+    // Storage blocked: the bridge starts off.
+  }
   renderEmpty();
   syncComposer();
+  syncLink();
   setStatus("busy", "연결 확인 중");
   return { refreshHealth, clear, focus: () => input.focus() };
 }

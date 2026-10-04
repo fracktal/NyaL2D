@@ -582,3 +582,10 @@ svg.kind { width: 14px; height: 14px; color: var(--text-3); flex: none; }
 .agent-send { border-radius: 9px; flex: none; }
 .agent-hint { margin-top: 6px; font-size: 10.5px; color: var(--text-3); text-align: center; }
 .node .src.agent { color: var(--accent); font-weight: 650; }
+.bridge-toggle { position: relative; width: 28px; padding: 0; }
+.bridge-toggle .bridge-dot { position: absolute; right: 4px; top: 4px; width: 6px; height: 6px; border-radius: 50%; background: transparent; }
+.bridge-toggle[aria-pressed="true"] { color: var(--text); }
+.bridge-toggle.connecting .bridge-dot, .bridge-toggle.unavailable .bridge-dot { background: var(--accent); }
+.bridge-toggle.connected .bridge-dot { background: var(--ok); }
+.run-label { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.02em; }
+.run-label svg { width: 13px; height: 13px; }

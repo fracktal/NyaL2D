@@ -1,6 +1,8 @@
 import type { LlmClient } from "./llm";
 import { LlmError } from "./llm";
 import type { AssistantBlock, LlmMessage, UserBlock } from "./protocol";
+import { blobToBase64 } from "./bridge";
+import { SYSTEM_PROMPT } from "./prompt";
 import { callTool, listTools, type ToolContext } from "./tools";
 
 /**
@@ -18,21 +20,14 @@ export type AgentPhase = "analyze" | "plan" | "change" | "evaluate";
 export type AgentEvent =
   | { type: "busy"; busy: boolean }
   | { type: "text"; text: string; phase: AgentPhase }
-  | { type: "tool_call"; id: string; name: string; input: unknown; phase: AgentPhase }
+  | { type: "tool_call"; id: string; name: string; input: unknown; phase: AgentPhase; external?: boolean }
   | { type: "tool_result"; id: string; ok: boolean; summary: string; image?: Blob }
   | { type: "done"; note?: string }
   | { type: "error"; message: string; retryable: boolean };
 
-const ACTION_TOOLS = new Set(["set_parameter", "set_motion_mode", "edit_physics_rig", "edit_binding", "undo", "revert_all"]);
+export const ACTION_TOOLS: ReadonlySet<string> = new Set(["set_parameter", "set_motion_mode", "edit_physics_rig", "edit_binding", "undo", "revert_all"]);
 const MAX_RESULT_CHARS = 12_000;
 
-export const SYSTEM_PROMPT = `You are the assistant inside NyaL2D, an authoring tool for 2D puppet models (Iki runtime). The person sees the model on a canvas next to this chat and can undo anything you change.
-
-Work through the tools: they are the only way to see or change the model. Start a task by calling list_capabilities, because what is possible depends on the runtime and the open model. Observe before you change (inspect_model, get_parameters, simulate_physics), make the smallest change that does the job, then check the effect (simulate_physics for physics, capture_frame to look) before you report. Model edits are recorded as changes and can be undone; never claim a change you did not make through a tool.
-
-If something the person asks for is not possible with the tools (for example, the format has no motion or expression clips), say so plainly instead of approximating it silently.
-
-Reply in the person's language, briefly: what you changed, what you measured, and what they might try next.`;
 
 export class AgentSession {
   private readonly history: LlmMessage[] = [];
@@ -109,7 +104,7 @@ export class AgentSession {
           if (r.ok && isAction) changed = true;
           const content = r.ok ? truncate(JSON.stringify(r.data ?? null)) : r.error;
           const block: UserBlock = { type: "tool_result", callId: call.id, ok: r.ok, content };
-          if (r.ok && r.image) block.image = { mediaType: r.image.type || "image/png", base64: await toBase64(r.image) };
+          if (r.ok && r.image) block.image = { mediaType: r.image.type || "image/png", base64: await blobToBase64(r.image) };
           results.push(block);
           this.emit({ type: "tool_result", id: call.id, ok: r.ok, summary: r.ok ? summarize(call.name, r.data) : r.error, image: r.ok ? r.image : undefined });
         }
@@ -133,13 +128,6 @@ export class AgentSession {
 
 function truncate(s: string): string {
   return s.length > MAX_RESULT_CHARS ? `${s.slice(0, MAX_RESULT_CHARS)}… (잘림: ${s.length}자 중 ${MAX_RESULT_CHARS}자)` : s;
-}
-
-async function toBase64(blob: Blob): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
 }
 
 /** One line for the chat transcript; the model gets the full JSON. */

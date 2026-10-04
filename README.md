@@ -17,7 +17,10 @@ npm install
 npm run dev        # 브라우저에서 Vite URL 열기
 npm run proxy      # (다른 터미널) 에이전트용 로컬 LLM 프록시. ANTHROPIC_API_KEY 필요
 npm run proxy:mock # 키 없이 에이전트 UI를 시험하는 모의 응답 프록시
+npm run proxy:claude # API 키 없이, 이 컴퓨터에 로그인된 Claude Code(내 Claude 계정)로 에이전트 요청 처리
 ```
+
+`proxy:claude`는 `claude` CLI가 설치되어 있고 `claude auth login`으로 로그인되어 있어야 한다. 에이전트 패널에 입력한 요청을 Claude Code가 받아, 열린 페이지의 도구만 써서 처리한다(파일·셸·웹 도구는 꺼 둠). 개인·로컬 시험용이며, 다른 사람에게 배포하는 제품은 API 키 제공자(`npm run proxy`)를 쓴다. 터미널의 Claude Code나 Claude Desktop에서 앱을 직접 조작하는 방법은 [docs/agent/agent-loop.md](docs/agent/agent-loop.md#claude-code로-실행하기-api-키-없이)에 있다.
 
 - 샘플 모델(`hero.iki`, Iki 저장소의 플레이그라운드 모델)이 자동으로 열린다. `열기`나 스테이지에 `.iki`를 끌어다 놓아 다른 모델을 연다.
 - **Parameters**: 머리·눈·눈썹·입·몸·물리 출력별 그룹, 검색, 값 직접 입력, 더블클릭으로 기본값. `Idle`/`물리` 표시는 모션 드라이버가 매 프레임 쓰는 값.
@@ -33,7 +36,7 @@ npm run proxy:mock # 키 없이 에이전트 UI를 시험하는 모의 응답 �
 
 ```bash
 cd app
-npm test           # 단위 테스트 (인스펙션, 변경 세션, 헤드리스 물리, 에이전트 도구·루프, 프록시 매핑)
+npm test           # 단위 테스트 (인스펙션, 변경 세션, 헤드리스 물리, 에이전트 도구·루프, 프록시 매핑, 도구 허브·Claude Code 출력 파싱)
 npm run build      # 타입 체크 + 번들
 npm run smoke      # headless Chromium에서 로드·렌더·캡처·물리·편집·undo·에이전트(모의 프록시) 확인
                    # (CHROMIUM_PATH로 브라우저 경로 지정 가능)

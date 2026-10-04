@@ -6,7 +6,9 @@ import { loadIkiModel, type IkiModel } from "@ikijs/format";
 import { inspectModel } from "./inspection/inspect";
 import { ModelSession } from "./model/model-session";
 import { ProxyLlmClient } from "./agent/llm";
+import { BridgeClient } from "./agent/bridge";
 import { AgentSession } from "./agent/loop";
+import { AgentRouter } from "./agent/router";
 import { callTool, listTools, type ToolContext, type ToolResult, type ToolSpec } from "./agent/tools";
 import { ExternalRuntime, importAdapter } from "./runtime/external-runtime";
 import { IkiRuntime } from "./runtime/iki-runtime";
@@ -313,6 +315,7 @@ function syncChrome(rebuildParams = false): void {
   $<HTMLButtonElement>("export").disabled = !session;
   $<HTMLButtonElement>("capture").disabled = !hasModel();
   $<HTMLButtonElement>("reset-pose").disabled = !hasModel();
+  bridge.syncTools();
   const canOpen = !!runtime && (!external || external.connected);
   $<HTMLButtonElement>("load-sample").disabled = !canOpen;
   $<HTMLInputElement>("file-input").disabled = !canOpen;
@@ -463,8 +466,23 @@ declare global {
 // --- Agent -----------------------------------------------------------------------
 
 const llm = new ProxyLlmClient();
-const agent = new AgentSession(llm, toolContext);
-const agentPanel = mountAgentPanel($("view-agent"), agent, llm);
+// Tool calls from Claude Code (in-app "run" mode or an MCP client the person runs) arrive over the bridge.
+const bridge = new BridgeClient({ tools: () => listTools(toolContext()), call: (name, args) => window.nyal2d.tools.call(name, args) });
+const agent = new AgentRouter(new AgentSession(llm, toolContext), llm, bridge);
+let bridgeWanted = false;
+const agentPanel = mountAgentPanel($("view-agent"), agent, llm, bridge, {
+  onHealth(h) {
+    agent.setMode(h?.mode === "run" ? "run" : "turn");
+    // Run mode needs the page on the hub; otherwise the bridge is the person's choice.
+    if (h?.mode === "run" && !bridge.isEnabled) {
+      bridgeWanted = true;
+      bridge.enable();
+    } else if (h?.mode !== "run" && bridgeWanted) {
+      bridgeWanted = false;
+      bridge.disable();
+    }
+  },
+});
 type View = "inspector" | "agent";
 let currentView: View = "inspector";
 
@@ -496,7 +514,7 @@ try {
 
 /** A different model or runtime makes the conversation stale. */
 function resetAgent(): void {
-  if (!agent.messages.length && !agent.busy) return;
+  if (!agent.hasHistory && !agent.busy) return;
   agent.reset();
   agentPanel.clear("모델이 바뀌어 대화를 새로 시작했습니다.");
 }

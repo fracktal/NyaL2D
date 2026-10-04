@@ -48,3 +48,32 @@ describe("runClaude stream-json parsing", () => {
     expect(events.filter((e) => e.type !== "text")).toHaveLength(1);
   });
 });
+
+describe("finding the Claude Code CLI", () => {
+  it("finds it in ~/.local/bin when PATH lacks it, and skips Windows folders under WSL", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, chmodSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { findClaude } = await import("../server/providers/claude-code");
+    const home = mkdtempSync(join(tmpdir(), "nyal2d-home-"));
+    const win = join(home, "mnt-like");
+    mkdirSync(join(home, ".local", "bin"), { recursive: true });
+    const exe = join(home, ".local", "bin", "claude");
+    writeFileSync(exe, "#!/bin/sh\n");
+    chmodSync(exe, 0o755);
+    expect(findClaude({ PATH: `/mnt/c/Users/x/AppData/Roaming/npm:${win}` }, home)).toBe(exe);
+  });
+
+  it("finds an nvm-installed CLI", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync, chmodSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { findClaude } = await import("../server/providers/claude-code");
+    const home = mkdtempSync(join(tmpdir(), "nyal2d-home-"));
+    const bin = join(home, ".nvm", "versions", "node", "v22.23.3", "bin");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, "claude"), "#!/bin/sh\n");
+    chmodSync(join(bin, "claude"), 0o755);
+    expect(findClaude({ PATH: "" }, home)).toBe(join(bin, "claude"));
+  });
+});

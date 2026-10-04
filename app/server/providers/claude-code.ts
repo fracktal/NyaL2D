@@ -1,8 +1,8 @@
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { accessSync, constants, mkdirSync, readdirSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { delimiter, join } from "node:path";
 import { MCP_INSTRUCTIONS } from "../../src/agent/prompt.ts";
 import type { RunEvent } from "../../src/agent/protocol.ts";
 import type { ToolHub } from "../tool-hub.ts";
@@ -21,7 +21,7 @@ import type { Provider } from "./types.ts";
  * product shipped to other people should use an API key provider instead.
  */
 export function createClaudeCodeProvider(opts: { hub: ToolHub; mcpUrl: () => string; command?: string; model?: string }): Provider {
-  const command = opts.command ?? "claude";
+  const command = opts.command ?? findClaude() ?? "claude";
   const hub = opts.hub;
   const workdir = join(tmpdir(), "nyal2d-agent");
   mkdirSync(workdir, { recursive: true });
@@ -63,6 +63,34 @@ export function createClaudeCodeProvider(opts: { hub: ToolHub; mcpUrl: () => str
   };
 }
 
+/**
+ * Where the Claude Code CLI is, when it is not simply on PATH: the native
+ * installer puts it in ~/.local/bin, which shells started without a login
+ * profile (an editor, a service, `wsl -e`) often do not have on PATH; npm
+ * under nvm puts it in a per-version bin folder. Windows folders that WSL
+ * appends to PATH (/mnt/...) are skipped: a Windows install cannot run here.
+ */
+export function findClaude(env: NodeJS.ProcessEnv = process.env, home = homedir()): string | undefined {
+  const dirs = (env.PATH ?? "").split(delimiter).filter((d) => d && !d.startsWith("/mnt/"));
+  dirs.push(join(home, ".local", "bin"), join(home, ".claude", "local"), join(home, ".npm-global", "bin"), "/usr/local/bin");
+  try {
+    const nvm = join(env.NVM_DIR ?? join(home, ".nvm"), "versions", "node");
+    for (const v of readdirSync(nvm).sort().reverse()) dirs.push(join(nvm, v, "bin"));
+  } catch {
+    // No nvm.
+  }
+  for (const dir of dirs) {
+    const file = join(dir, process.platform === "win32" ? "claude.exe" : "claude");
+    try {
+      accessSync(file, constants.X_OK);
+      return file;
+    } catch {
+      // Not here.
+    }
+  }
+  return undefined;
+}
+
 /** Environment for a standalone Claude Code run, even when the proxy itself was started from inside Claude Code. */
 function childEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
@@ -74,7 +102,7 @@ function authStatus(command: string): Promise<{ ready: boolean; detail?: string 
   return new Promise((resolve) => {
     execFile(command, ["auth", "status", "--json"], { timeout: 20_000, env: childEnv() }, (err, stdout) => {
       if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-        return resolve({ ready: false, detail: "Claude Code CLI(claude)를 찾을 수 없습니다. 설치한 뒤 `claude auth login`으로 로그인하세요." });
+        return resolve({ ready: false, detail: "Claude Code CLI(claude)를 찾을 수 없습니다. 설치했다면 `which claude`로 나온 경로를 NYAL2D_CLAUDE_BIN에 지정해 앱을 다시 시작하세요. 없다면 설치 후 `claude auth login`." });
       }
       try {
         const s = JSON.parse(stdout) as { loggedIn?: boolean };

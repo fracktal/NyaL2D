@@ -18,6 +18,7 @@ NyaL2D를 "남의 엔진(Iki) 위의 편집 앱"에서 "직접 만드는 2D 퍼�
 | [references-and-licenses.md](references-and-licenses.md) | 참고 엔진·라이브러리와 라이선스, 법적 메모 |
 | [architecture.md](architecture.md) | 제안 구조, 언어 선택, 파일 형식 방향, 품질 보증 |
 | [roadmap.md](roadmap.md) | 0~8단계 로드맵과 바로 다음 할 일 |
+| [live2d-feature-map.md](live2d-feature-map.md) | Live2D 기능 전체 목록과 우리 엔진의 어느 단계에서 만드는지 |
 
 ## 정해야 할 것
 

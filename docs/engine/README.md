@@ -19,6 +19,7 @@ NyaL2D를 "남의 엔진(Iki) 위의 편집 앱"에서 "직접 만드는 2D 퍼�
 | [architecture.md](architecture.md) | 제안 구조, 언어 선택, 파일 형식 방향, 품질 보증 |
 | [roadmap.md](roadmap.md) | 0~8단계 로드맵과 바로 다음 할 일 |
 | [live2d-feature-map.md](live2d-feature-map.md) | Live2D 기능 전체 목록과 우리 엔진의 어느 단계에서 만드는지 |
+| [ai-authoring-research.md](ai-authoring-research.md) | 그림 한 장으로 퍼펫을 자동 생성하는 연구들(See-through, Bunraku 등)과 우리에게 주는 시사점 |
 
 ## 정해야 할 것
 

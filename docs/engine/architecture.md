@@ -50,7 +50,8 @@
   - git으로 비교하기 쉽게 정렬된 키, 숫자는 고정 소수점 자리수.
 - 주요 블록
   - `parameters[]`: id, 범위, 기본값, 반복 여부(360도 회전용), 그룹.
-  - `nodes[]`: 트리. 종류 `part` / `warp` / `rotate` / `bone` / `mesh`.
+  - `nodes[]`: 트리. 종류 `part` / `warp` / `rotate` / `bone` / `mesh`. 노드마다 의미 태그, 레이어 깊이(선택), 메시는 꼭짓점별 깊이(선택).
+  - 키폼마다 생성 출처(`generatedBy`, 손으로 고쳤는지). 자동 생성을 다시 돌려도 사람이 고친 부분은 보존. ([auto-angle-generation.md](auto-angle-generation.md))
   - 각 노드의 `keyforms`: 반응하는 파라미터 축 목록 + 키 값 + 축 조합별 값(꼭짓점, 각도, 불투명도, 색, 그리기 순서).
   - `shapes[]`: 가산 블렌드 셰이프.
   - `masks`: 메시별 마스크 목록, 반전 여부.
